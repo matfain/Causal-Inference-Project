@@ -1,0 +1,29 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.Ruserdata
+
+# RStudio files
+.Rproj.user/
+*.Rproj
+
+# Environment files
+.Renviron
+
+# Cache files
+.Rcache/
+.Rcheck/
+
+# Markdown & Knitr cache
+*.utf8.md
+*.knit.md
+cache/
+*_cache/
+*_files/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
