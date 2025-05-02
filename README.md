@@ -12,6 +12,7 @@ Causal-Inference-Project/
 │   └── full_cohort_data.csv          # Main cohort dataset for analysis
 ├── sandbox/                          # Experimental notebooks and scratch work
 │   └── base_eda_matan.Rmd            # Initial exploratory data analysis
+├── requirements.R                    # R packages required for the project
 ├── .gitignore                        # Ignore rules for Git version control
 ├── README.md                         # Project overview and structure
 ```
@@ -21,6 +22,25 @@ Causal-Inference-Project/
 - RStudio
 - R Markdown
 - Git & GitHub
+
+## 📦 Required R Packages
+
+To install all required packages, run the following line in your R console:
+
+```r
+source("requirements.R")
+```
+
+This script installs:
+- tidyverse
+- skimr
+- tableone
+- GGally
+- naniar
+- ggridges
+- ggcorrplot
+- factoextra
+- vcd
 
 ## 📌 Notes
 - Keep large or sensitive data outside Git (`data/` is tracked only for small public files)
