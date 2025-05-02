@@ -173,6 +173,7 @@ gg_miss_var(df, facet = aline_flg) +
 
 ```{r pca-setup-fixed}
 # Restrict to complete cases on the PCA variables, then run PCA
+pca_vars <- cont_vars
 df_pca       <- df %>% drop_na(all_of(pca_vars))
 cont_df_pca  <- df_pca %>% select(all_of(pca_vars))
 pc           <- prcomp(cont_df_pca, center = TRUE, scale. = TRUE)
