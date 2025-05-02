@@ -1,0 +1,17 @@
+---
+title: "project basic EDA"
+author: "Matan"
+date: "2025-05-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Basic EDA
+
+```{r}
+df <- read.csv("../data/full_cohort_data.csv")
+summary(df)
+```
