@@ -1,17 +1,211 @@
 ---
-title: "project basic EDA"
+title: "Project Basic EDA: ICU Catheter Analysis"
 author: "Matan"
-date: "2025-05-02"
+date: "`r Sys.Date()`"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(skimr)
+library(tableone)
+library(GGally)
+library(naniar)
+library(ggridges)
+library(ggcorrplot)
+library(factoextra)
+library(vcd)
 ```
 
-## Basic EDA
+# 1. Data Loading & Overview
 
-```{r}
+```{r data-load}
 df <- read.csv("../data/full_cohort_data.csv")
-summary(df)
+skim(df)
+```
+
+# 2. Treatment & Outcome Distribution
+
+```{r treat-outcome}
+df %>% 
+  count(aline_flg) %>% 
+  mutate(pct = n / sum(n) * 100) %>% 
+  rename(Catheter = aline_flg)
+
+df %>% 
+  count(day_28_flg) %>% 
+  mutate(pct = n / sum(n) * 100) %>% 
+  rename(Death28d = day_28_flg)
+```
+
+# 3. Baseline Characteristics (Table 1)
+
+```{r table1}
+cont_vars <- c("age", "weight_first", "bmi",
+               "sapsi_first", "sofa_first",
+               "icu_los_day", "hospital_los_day",
+               "map_1st", "hr_1st", "spo2_1st")
+cat_vars  <- c("gender_num", "service_unit", "service_num",
+               "day_icu_intime", "hour_icu_intime",
+               "sepsis_flg", "chf_flg", "copd_flg",
+               "renal_flg", "liver_flg", "cad_flg")
+
+tab1 <- CreateTableOne(
+  vars       = c(cont_vars, cat_vars),
+  strata     = "aline_flg",
+  data       = df,
+  factorVars = cat_vars
+)
+print(tab1, showAllLevels = TRUE, smd = TRUE)
+```
+
+# 4. Univariate Distributions
+
+## 4.1 Continuous Covariates
+
+### Age Distribution
+
+```{r age-hist}
+ggplot(df, aes(x = age, fill = factor(aline_flg))) +
+  geom_histogram(position = "dodge", bins = 30, alpha = 0.8) +
+  scale_fill_manual(values = c("#619CFF", "#F8766D"),
+                    labels = c("No catheter", "Catheter")) +
+  labs(title = "Age Distribution by Catheter",
+       x = "Age (years)", y = "Count", fill = "Catheter") +
+  theme_minimal()
+```
+
+### Boxplots
+
+```{r boxplots}
+box_vars <- c("bmi", "sapsi_first", "sofa_first", "map_1st", "hr_1st", "spo2_1st")
+df %>%
+  select(aline_flg, all_of(box_vars)) %>%
+  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
+  ggplot(aes(x = factor(aline_flg), y = Value)) +
+    geom_boxplot(outlier.size = 0.5) +
+    facet_wrap(~ Variable, scales = "free_y", ncol = 3) +
+    labs(x = "Catheter (0 = no, 1 = yes)", y = NULL) +
+    theme_minimal()
+```
+
+### Density Ridges
+
+```{r density-ridges}
+ridge_vars <- c("age", "bmi", "sapsi_first", "sofa_first")
+df %>%
+  select(aline_flg, all_of(ridge_vars)) %>%
+  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
+  ggplot(aes(x = Value, y = factor(aline_flg), fill = factor(aline_flg))) +
+    geom_density_ridges(alpha = 0.7, scale = 1.2) +
+    facet_wrap(~ Variable, scales = "free_x", ncol = 2) +
+    labs(y = "Catheter", fill = "Catheter") +
+    theme_minimal()
+```
+
+## 4.2 Categorical Covariates
+
+```{r cat-plots}
+df %>%
+  mutate(across(all_of(cat_vars), factor)) %>%
+  select(aline_flg, all_of(cat_vars)) %>%
+  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
+  ggplot(aes(x = Value, fill = factor(aline_flg))) +
+    geom_bar(position = "dodge") +
+    facet_wrap(~ Variable, scales = "free_x", ncol = 3) +
+    labs(x = NULL, fill = "Catheter") +
+    theme_minimal()
+```
+
+```{r mosaic-sepsis}
+mosaic(~ aline_flg + sepsis_flg,
+       data = df,
+       shade = TRUE,
+       legend = TRUE,
+       labeling_args = list(
+         set_varnames = c(aline_flg = "Catheter", sepsis_flg = "Sepsis")
+       ))
+```
+
+# 5. Bivariate Relationships
+
+## 5.1 Scatterplot Matrix
+
+```{r scatter-matrix}
+df %>%
+  select(all_of(cont_vars)) %>%
+  ggpairs(upper = list(continuous = wrap("cor", size = 3))) +
+  ggtitle("Scatterplot Matrix of Continuous Covariates")
+```
+
+## 5.2 Correlation Heatmap
+
+```{r correlation-heatmap}
+corr_mat <- cor(df %>% select(all_of(cont_vars)), use = "pairwise.complete.obs")
+ggcorrplot(corr_mat, lab = TRUE) +
+  labs(title = "Correlation Heatmap of Continuous Covariates")
+```
+
+## 5.3 Smoothed Logistic Fit
+
+```{r logistic-smooth}
+ggplot(df, aes(x = age, y = day_28_flg, color = factor(aline_flg))) +
+  geom_jitter(height = 0.025, alpha = 0.3) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  labs(title = "Probability of Death vs. Age by Catheter",
+       y = "Mortality (0/1)", color = "Catheter") +
+  theme_minimal()
+```
+
+# 6. Missing Data
+
+```{r missing-pattern}
+vis_miss(df) + labs(title = "Missing Data Pattern")
+```
+
+```{r missing-by-group}
+gg_miss_var(df, facet = aline_flg) +
+  labs(title = "Variable-wise Missingness by Catheter Use")
+```
+
+# 7. Dimension Reduction (PCA)
+
+```{r pca-setup-fixed}
+# Restrict to complete cases on the PCA variables, then run PCA
+df_pca       <- df %>% drop_na(all_of(pca_vars))
+cont_df_pca  <- df_pca %>% select(all_of(pca_vars))
+pc           <- prcomp(cont_df_pca, center = TRUE, scale. = TRUE)
+```
+
+```{r pca-scree}
+fviz_eig(pc) + labs(title = "PCA Scree Plot")
+```
+
+```{r pca-biplot}
+# Biplot using only the same rows you fed into PCA
+fviz_pca_ind(
+  pc,
+  geom.ind    = "point",
+  habillage   = factor(df_pca$aline_flg),
+  palette     = c("#619CFF", "#F8766D"),
+  addEllipses = TRUE
+) +
+  labs(title = "PCA Biplot by Catheter", color = "Catheter")
+```
+
+# 8. Comorbidity Burden
+
+```{r comorbidity-burden}
+comorbid_vars <- c("sepsis_flg", "chf_flg", "copd_flg", "renal_flg", "liver_flg", "cad_flg")
+df %>%
+  rowwise() %>%
+  mutate(comorb_count = sum(c_across(all_of(comorbid_vars)))) %>%
+  ungroup() %>%
+  ggplot(aes(x = comorb_count, fill = factor(aline_flg))) +
+    geom_histogram(position = "dodge", binwidth = 1, boundary = 0) +
+    scale_x_continuous(breaks = 0:6) +
+    labs(title = "Comorbidity Count by Catheter",
+         x = "Number of Comorbidities", fill = "Catheter") +
+    theme_minimal()
 ```
