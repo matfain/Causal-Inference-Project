@@ -284,6 +284,8 @@ potential_effect_modifiers <- sub("^.*:", "", potential_effect_modifiers)
 potential_effect_modifiers
 ```
 
+Finding potential con-founders based on the intersection between the variables that "survived" the lasso fit of the treatment prediction and predicting the outcomes.
+
 ```{r}
 # Assuming potential_confounders and potential_effect_modifiers are already in your environment
 
@@ -318,9 +320,7 @@ treatment_predictors <- treatment_predictors[!treatment_predictors %in% c("servi
 treatment_predictors <- c(treatment_predictors, "service_unit")
 ```
 
-# 4. Univariate Distributions
-
-## 4.1 Continuous Covariates
+## Continuous Covariates Distributions
 
 ```{r}
 # Split a vector of variable names into continuous vs. categorical/binary
@@ -358,19 +358,7 @@ pc_split <- split_covs(potential_confounders, df)
 potential_confounders_continuous  <- pc_split$continuous
 potential_confounders_categorical <- pc_split$categorical
 
-# Print out the resulting lists
-list(
-  treatment_predictors_continuous,
-  treatment_predictors_categorical,
-  potential_effect_modifiers_continuous,
-  potential_effect_modifiers_categorical,
-  potential_confounders_continuous,
-  potential_confounders_categorical
-)
-
 ```
-
-### Density Ridges
 
 ```{r}
 library(dplyr)
@@ -438,7 +426,7 @@ plot_density_ridges(
 
 ```
 
-## 4.2 Categorical Covariates
+## Categorical Covariates Histograms
 
 ```{r}
 library(dplyr)
@@ -507,5 +495,3 @@ plot_cat_histograms(
 
 
 ```
-
-## Correlation plot
