@@ -1,5 +1,6 @@
 # requirements.R
 
+# List all packages used in the project
 packages <- c(
   "tidyverse",
   "skimr",
@@ -9,7 +10,11 @@ packages <- c(
   "ggridges",
   "ggcorrplot",
   "factoextra",
-  "vcd"
+  "vcd",
+  "glmnet",
+  "dplyr",
+  "knitr",
+  "tibble"
 )
 
 install_if_missing <- function(p) {
@@ -18,4 +23,5 @@ install_if_missing <- function(p) {
   }
 }
 
+# install any missing package
 invisible(lapply(packages, install_if_missing))

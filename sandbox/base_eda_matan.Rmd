@@ -62,75 +62,75 @@ Among adult ICU stays for mechanically ventilated, hemodynamically stable patien
 
 [How treatment was allocated in practice:]{.underline}\
 Clinician decision based on monitoring needs and perceived severity.\
-In order to find potential covariates that affect the treatment allocation we fit a logistic regression model as described below. According to this modeling, the potential covariates are:
+To identify variables that may have influenced treatment allocation, we fitted a logistic regression model. The following covariates were selected by that model:
 
--   renal_flg
+-   renal_flg: Chronic renal disease (binary: 0 = no, 1 = yes)
 
--   abg_count
+-   abg_count: Arterial blood gas count (number of tests, numeric)
 
--   resp_flg
+-   resp_flg: Respiratory disease (non-COPD) (binary: 0 = no, 1 = yes)
 
--   stroke_flg
+-   stroke_flg: Stroke (binary: 0 = no, 1 = yes)
 
--   afib_flg
+-   afib_flg: Atrial fibrillation (binary: 0 = no, 1 = yes)
 
--   liver_flg
+-   liver_flg: Liver disease (binary: 0 = no, 1 = yes)
 
--   copd_flg
+-   copd_flg: Chronic obstructive pulmonary disease (binary: 0 = no, 1 = yes)
 
--   mal_flg
+-   mal_flg: Malignancy (binary: 0 = no, 1 = yes)
 
--   sofa_first
+-   sofa_first: First SOFA score (numeric)
 
--   chloride_first
+-   chloride_first: First chloride level (mEq/L, numeric)
 
--   service_unit
+-   service_unit: Type of service unit (character: FICU, MICU, SICU)
 
 [Key potential confounders:\
-]{.underline}We model the outcome and the treatment allocation as described below, and looked for the intersection of covariates between the two models, in order to find potential confounders:
+]{.underline}We identified confounders by taking the intersection of covariates included in both the treatment–allocation and outcome models:
 
--   renal_flg
+-   renal_flg: Chronic renal disease (binary: 0 = no, 1 = yes)
 
--   resp_flg
+-   resp_flg: Respiratory disease (non-COPD) (binary: 0 = no, 1 = yes)
 
--   stroke_flg
+-   stroke_flg: Stroke (binary: 0 = no, 1 = yes)
 
--   afib_flg
+-   afib_flg: Atrial fibrillation (binary: 0 = no, 1 = yes)
 
--   liver_flg
+-   liver_flg: Liver disease (binary: 0 = no, 1 = yes)
 
--   copd_flg
+-   copd_flg: Chronic obstructive pulmonary disease (binary: 0 = no, 1 = yes)
 
--   mal_flg
+-   mal_flg: Malignancy (binary: 0 = no, 1 = yes)
 
--   sofa_first
+-   sofa_first: First SOFA score (numeric)
 
--   service_unit
+-   service_unit: Type of service unit (character: FICU, MICU, SICU)
 
 [Potential effect-modifiers:]{.underline}\
-We modeled the outcome that included interaction between the available covariates and the treatment in order to find potential effect modifiers:
+To detect variables that modify the treatment effect, we fit outcome models including interaction terms between each covariate and the treatment indicator:
 
--   cad_flg
+-   cad_flg: Coronary artery disease (binary: 0 = no, 1 = yes)
 
--   stroke_flg
+-   stroke_flg: Stroke (binary: 0 = no, 1 = yes)
 
--   copd_flg
+-   copd_flg: Chronic obstructive pulmonary disease (binary: 0 = no, 1 = yes)
 
--   hospital_los_day
+-   hospital_los_day: Length of hospital stay (days, numeric)
 
--   afib_flg
+-   afib_flg: Atrial fibrillation (binary: 0 = no, 1 = yes)
 
--   icu_los_day
+-   icu_los_day: Length of stay in ICU (days, numeric)
 
--   gender_num
+-   gender_num: Patient gender (1 = male, 0 = female)
 
--   resp_flg
+-   resp_flg: Respiratory disease (non-COPD) (binary: 0 = no, 1 = yes)
 
--   mal_flg
+-   mal_flg: Malignancy (binary: 0 = no, 1 = yes)
 
--   service_unit
+-   service_unit: Type of service unit (character: FICU, MICU, SICU)
 
-### EDA for Detection of Confounders & Effect Modifiers
+# EDA for Detection of Confounders & Effect Modifiers
 
 ```{r data-load}
 df <- read.csv("../data/full_cohort_data.csv")
