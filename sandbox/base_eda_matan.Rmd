@@ -19,6 +19,7 @@ library(vcd)
 library(glmnet)
 library(dplyr)
 library(knitr)
+library(tibble)
 ```
 
 # Research Question & Notations
@@ -29,19 +30,19 @@ Among adult ICU stays for mechanically ventilated, hemodynamically stable patien
 
 ### Notations:
 
-**Population-** Adult ICU stays for patients with respiratory failure who were mechanically ventilated on day 1 and hemodynamically stable at admission.
+[Population:]{.underline} Adult ICU stays for patients with respiratory failure who were mechanically ventilated on day 1 and hemodynamically stable at admission.
 
-**Unit of analysis-** Each ICU admission (icustay_id).
+[Unit of analysis:]{.underline} Each ICU admission (icustay_id).
 
-**Time-zero-** the first 24 hours of ICU admission.
+[Time-zero:]{.underline} the first 24 hours of ICU admission.
 
-**Treatment-** Arterial catheter placed within 24 hours of ICU admission (aline_flg = 1 means catheter in first day; 0 means none).
+[Treatment:]{.underline} Arterial catheter placed within 24 hours of ICU admission (aline_flg = 1 means catheter in first day; 0 means none).
 
-**Outcome-** In-hospital mortality within 28 days of ICU admission (day_28_flg: 1 = died, 0 = survived).
+[Outcome:]{.underline} In-hospital mortality within 28 days of ICU admission (day_28_flg: 1 = died, 0 = survived).
 
-## DataSet
+### Dataset:
 
-**Name & Source-** Subset of the MIMIC-II database, assembled for Chapter 16 of Secondary Analysis of EHR ([Link](https://physionet.org/content/mimic2-iaccd/1.0/))
+[Name & Source:]{.underline} Subset of the MIMIC-II database, assembled for Chapter 16 of Secondary Analysis of EHR ([Link](#0))
 
 [Key variables available:]{.underline}
 
@@ -61,22 +62,82 @@ Among adult ICU stays for mechanically ventilated, hemodynamically stable patien
 
 [How treatment was allocated in practice:]{.underline}\
 Clinician decision based on monitoring needs and perceived severity.\
-Reasonable to assume that more severe or unstable patients are more likely to receive an arterial line.
+In order to find potential covariates that affect the treatment allocation we fit a logistic regression model as described below. According to this modeling, the potential covariates are:
 
-[Key potential confounders: FIX THIS\
-]{.underline}Baseline severity (SAPS I, SOFA), age, comorbidities, initial vital signs/labs, service unit type, admission timing. (This were chosen based on the analysis below)
+-   renal_flg
 
-[Potential effect-modifiers: FIX THIS]{.underline}\
-Age group, baseline score strata, service unit, comorbidity burden.
+-   abg_count
 
-### EDA for detection of con-founders & effect modifiers
+-   resp_flg
+
+-   stroke_flg
+
+-   afib_flg
+
+-   liver_flg
+
+-   copd_flg
+
+-   mal_flg
+
+-   sofa_first
+
+-   chloride_first
+
+-   service_unit
+
+[Key potential confounders:\
+]{.underline}We model the outcome and the treatment allocation as described below, and looked for the intersection of covariates between the two models, in order to find potential confounders:
+
+-   renal_flg
+
+-   resp_flg
+
+-   stroke_flg
+
+-   afib_flg
+
+-   liver_flg
+
+-   copd_flg
+
+-   mal_flg
+
+-   sofa_first
+
+-   service_unit
+
+[Potential effect-modifiers:]{.underline}\
+We modeled the outcome that included interaction between the available covariates and the treatment in order to find potential effect modifiers:
+
+-   cad_flg
+
+-   stroke_flg
+
+-   copd_flg
+
+-   hospital_los_day
+
+-   afib_flg
+
+-   icu_los_day
+
+-   gender_num
+
+-   resp_flg
+
+-   mal_flg
+
+-   service_unit
+
+### EDA for Detection of Confounders & Effect Modifiers
 
 ```{r data-load}
 df <- read.csv("../data/full_cohort_data.csv")
 skim(df)
 ```
 
-### Treatment & outcome distribution
+### Treatment & Outcome Distribution
 
 ```{r treat-outcome}
 df %>% 
@@ -90,17 +151,17 @@ df %>%
   rename(Death28d = day_28_flg)
 ```
 
-## Missing Values analysis & handling
+## Missing Values Analysis & Handling
 
 ```{r}
-# 1. Percentage of rows with at least one missing value
+# Percentage of rows with at least one missing value
 total_rows        <- nrow(df)
 rows_with_missing <- sum(!complete.cases(df))
 pct_rows_missing  <- rows_with_missing / total_rows * 100
 cat(sprintf("Rows with ≥1 missing: %d / %d (%.2f%%)\n", 
             rows_with_missing, total_rows, pct_rows_missing))
 
-# 2. Percentage of missing values per column
+# Percentage of missing values per column
 col_pct_missing <- sapply(df, function(col) mean(is.na(col)) * 100)
 
 missing_summary <- data.frame(
@@ -110,34 +171,25 @@ missing_summary <- data.frame(
 )
 
 print(missing_summary)
-
-
 ```
 
 ```{r}
-# we remove the bmi variable from the df
+# We remove the bmi variable from the df
 df <- df %>% select(-bmi)
 ```
 
-## Fitting models with lasso to find key covariates
+## Fitting Models with Lasso to Find Key Covariates
 
 Fitting a logistic regression model to identify covariates that predict treatment
 
 ```{r}
-# Load required libraries
-if (!require(glmnet)) install.packages("glmnet")
-library(glmnet)
-library(dplyr)
-library(tibble)
-library(knitr)
-
-# 1. Prepare data: convert character columns to factors, drop missing
+# Prepare data: convert character columns to factors, drop missing
 df_lasso <- df %>%
   mutate(across(where(is.character), as.factor)) %>%
   drop_na()
 
-# 2. Define response vector y and design matrix X,
-#    excluding outcome and day-of-week/time columns
+# Define response vector y and design matrix X,
+# Excluding outcome and day-of-week/time columns
 y <- df_lasso$aline_flg
 X <- model.matrix(
   aline_flg ~ . 
@@ -150,7 +202,7 @@ X <- model.matrix(
   data = df_lasso
 )[, -1]
 
-# 3. Cross-validated LASSO logistic regression
+# Cross-validated LASSO logistic regression
 set.seed(123)
 cvfit <- cv.glmnet(
   x           = X,
@@ -160,7 +212,7 @@ cvfit <- cv.glmnet(
   standardize = TRUE
 )
 
-# 4. Fit final model at the optimal λ
+# Fit final model at the optimal λ
 lambda_min <- cvfit$lambda.min
 lasso_mod   <- glmnet(
   x           = X,
@@ -171,7 +223,7 @@ lasso_mod   <- glmnet(
   standardize = TRUE
 )
 
-# 5. Extract coefficients into a data frame
+# Extract coefficients into a data frame
 coef_df <- as.matrix(coef(lasso_mod)) %>% 
   as.data.frame() %>% 
   rownames_to_column("term")
@@ -179,36 +231,27 @@ coef_df <- as.matrix(coef(lasso_mod)) %>%
 # Rename the second column to "estimate"
 names(coef_df)[2] <- "estimate"
 
-# 6. Filter on absolute value > 0.01 and sort by magnitude
+# Filter on absolute value > 0.01 and sort by magnitude
 coef_df <- coef_df %>% 
   filter(term != "(Intercept)", abs(estimate) > 0.05) %>% 
   arrange(desc(abs(estimate)))
 
 treatment_predictors <- coef_df$term
 
-# 7. Print nicely
+# Print nicely
 kable(coef_df, digits = 3, caption = "LASSO Coefficients (|estimate| > 0.05) for Treatment Model")
-
-
 ```
 
-Fitting a logistic regression model to identify covariates that predict outcome using interactions in order to find potential effect modifiers.
+Fitting a logistic regression model to identify covariates that predict outcome using interactions, in order to find potential effect modifiers.
 
 ```{r}
-# Load required libraries
-if (!require(glmnet)) install.packages("glmnet")
-library(glmnet)
-library(dplyr)
-library(tibble)
-library(knitr)
-
-# 1. Prepare data: convert character columns to factors, drop missing
+# Prepare data: convert character columns to factors, drop missing
 df_mod <- df %>%
   mutate(across(where(is.character), as.factor)) %>%
   drop_na()
 
-# 2. Build formula including main effects and treatment interactions
-#    Exclude post-treatment/time variables
+# Build formula including main effects and treatment interactions
+# Exclude post-treatment/time variables
 excluded <- c(
   "hosp_exp_flg", "day_icu_intime", "day_icu_intime_num",
   "icu_exp_flg", "mort_day_censored", "censor_flg",
@@ -227,11 +270,11 @@ form_str <- paste0(
 )
 formula_inter <- as.formula(form_str)
 
-# 3. Define response vector y and design matrix X
+# Define response vector y and design matrix X
 y <- df_mod$day_28_flg
 X <- model.matrix(formula_inter, data = df_mod)[, -1]
 
-# 4. Cross-validated LASSO logistic regression
+# Cross-validated LASSO logistic regression
 set.seed(123)
 cvfit_outcome <- cv.glmnet(
   x           = X,
@@ -241,7 +284,7 @@ cvfit_outcome <- cv.glmnet(
   standardize = TRUE
 )
 
-# 5. Fit final model at the optimal λ
+# Fit final model at the optimal λ
 lambda_min_outcome <- cvfit_outcome$lambda.min
 lasso_outcome <- glmnet(
   x           = X,
@@ -252,25 +295,25 @@ lasso_outcome <- glmnet(
   standardize = TRUE
 )
 
-# 6. Extract coefficients into a data frame
+# Extract coefficients into a data frame
 coef_df_outcome <- as.matrix(coef(lasso_outcome)) %>%
   as.data.frame() %>%
   rownames_to_column("term")
 names(coef_df_outcome)[2] <- "estimate"
 
-# 7. Filter on |estimate| > 0.05 and sort by magnitude
+# Filter on |estimate| > 0.05 and sort by magnitude
 coef_df_outcome <- coef_df_outcome %>%
   filter(term != "(Intercept)", abs(estimate) > 0.05) %>%
   arrange(desc(abs(estimate)))
 
-# 8. Save selected terms as potential effect modifiers
+# Save selected terms as potential effect modifiers
 outcome_predictors <- coef_df_outcome$term
 
 potential_effect_modifiers <- coef_df_outcome %>%
   filter(grepl(":", term)) %>%
   pull(term)
 
-# 9. Print nicely
+# Print nicely
 kable(
   potential_effect_modifiers,
   digits  = 3,
@@ -281,17 +324,11 @@ kable(
 
 ```{r}
 potential_effect_modifiers <- sub("^.*:", "", potential_effect_modifiers)
-potential_effect_modifiers
 ```
 
 Finding potential con-founders based on the intersection between the variables that "survived" the lasso fit of the treatment prediction and predicting the outcomes.
 
 ```{r}
-# Assuming potential_confounders and potential_effect_modifiers are already in your environment
-
-library(tibble)
-library(knitr)
-
 # 1. Compute intersection
 outcome_predictors <- union(outcome_predictors,potential_effect_modifiers)
 potential_confounders <- intersect(treatment_predictors, outcome_predictors)
@@ -305,8 +342,6 @@ shared_df <- tibble(
 kable(
   shared_df,
 )
-
-
 ```
 
 ```{r}
@@ -320,7 +355,7 @@ treatment_predictors <- treatment_predictors[!treatment_predictors %in% c("servi
 treatment_predictors <- c(treatment_predictors, "service_unit")
 ```
 
-## Continuous Covariates Distributions
+### Continuous Covariates Distributions
 
 ```{r}
 # Split a vector of variable names into continuous vs. categorical/binary
@@ -361,11 +396,6 @@ potential_confounders_categorical <- pc_split$categorical
 ```
 
 ```{r}
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(ggridges)
-
 # Helper function to plot density ridges if there are continuous vars
 plot_density_ridges <- function(data, group_var, cont_vars, title, y_label) {
   if (length(cont_vars) == 0) {
@@ -426,13 +456,9 @@ plot_density_ridges(
 
 ```
 
-## Categorical Covariates Histograms
+### Categorical Covariates Histograms
 
 ```{r}
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-
 # Helper to plot bar charts for categorical/binary vars,
 # coercing all selected vars to character so pivot_longer works
 plot_cat_histograms <- function(data, group_var, cat_vars, title, legend_title) {
