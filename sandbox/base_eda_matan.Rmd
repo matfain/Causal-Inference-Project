@@ -63,10 +63,10 @@ Among adult ICU stays for mechanically ventilated, hemodynamically stable patien
 Clinician decision based on monitoring needs and perceived severity.\
 Reasonable to assume that more severe or unstable patients are more likely to receive an arterial line.
 
-[Key potential confounders:\
+[Key potential confounders: FIX THIS\
 ]{.underline}Baseline severity (SAPS I, SOFA), age, comorbidities, initial vital signs/labs, service unit type, admission timing. (This were chosen based on the analysis below)
 
-[Potential effect-modifiers:]{.underline}\
+[Potential effect-modifiers: FIX THIS]{.underline}\
 Age group, baseline score strata, service unit, comorbidity burden.
 
 ### EDA for detection of con-founders & effect modifiers
