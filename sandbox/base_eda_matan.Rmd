@@ -16,16 +16,67 @@ library(ggridges)
 library(ggcorrplot)
 library(factoextra)
 library(vcd)
+library(glmnet)
+library(dplyr)
+library(knitr)
 ```
 
-# 1. Data Loading & Overview
+# Research Question & Notations
+
+### Question:
+
+Among adult ICU stays for mechanically ventilated, hemodynamically stable patients with respiratory failure, what is the causal effect of receiving an arterial catheter within the first 24 hours of ICU admission (treatment) versus not receiving one on the risk of in-hospital death within 28 days (outcome)?
+
+### Notations:
+
+**Population-** Adult ICU stays for patients with respiratory failure who were mechanically ventilated on day 1 and hemodynamically stable at admission.
+
+**Unit of analysis-** Each ICU admission (icustay_id).
+
+**Time-zero-** the first 24 hours of ICU admission.
+
+**Treatment-** Arterial catheter placed within 24 hours of ICU admission (aline_flg = 1 means catheter in first day; 0 means none).
+
+**Outcome-** In-hospital mortality within 28 days of ICU admission (day_28_flg: 1 = died, 0 = survived).
+
+## DataSet
+
+**Name & Source-** Subset of the MIMIC-II database, assembled for Chapter 16 of Secondary Analysis of EHR ([Link](https://physionet.org/content/mimic2-iaccd/1.0/))
+
+[Key variables available:]{.underline}
+
+-   Demographics & stay details: age, gender, service unit (FICU/MICU/SICU), admission day/hour.
+
+-   Severity scores: SAPS I (sapsi_first), SOFA (sofa_first).
+
+-   Vital signs & labs (first measurements): mean arterial pressure (map_1st), heart rate (hr_1st), SpO₂ (spo2_1st), WBC, creatinine, etc.
+
+-   Comorbidity flags: sepsis, CHF, COPD, renal disease, liver disease, CAD, stroke, malignancy, respiratory disease.
+
+-   Lengths of stay: ICU LOS (icu_los_day), hospital LOS (hospital_los_day).
+
+-   Treatment flag: aline_flg (arterial line in first 24 h).
+
+-   Outcome flags: hosp_exp_flg, icu_exp_flg, day_28_flg, censoring indicators.
+
+[How treatment was allocated in practice:]{.underline}\
+Clinician decision based on monitoring needs and perceived severity.\
+Reasonable to assume that more severe or unstable patients are more likely to receive an arterial line.
+
+[Key potential confounders:\
+]{.underline}Baseline severity (SAPS I, SOFA), age, comorbidities, initial vital signs/labs, service unit type, admission timing. (This were chosen based on the analysis below)
+
+[Potential effect-modifiers:]{.underline}\
+Age group, baseline score strata, service unit, comorbidity burden.
+
+### EDA for detection of con-founders & effect modifiers
 
 ```{r data-load}
 df <- read.csv("../data/full_cohort_data.csv")
 skim(df)
 ```
 
-# 2. Treatment & Outcome Distribution
+### Treatment & outcome distribution
 
 ```{r treat-outcome}
 df %>% 
@@ -39,174 +90,422 @@ df %>%
   rename(Death28d = day_28_flg)
 ```
 
-# 3. Baseline Characteristics (Table 1)
+## Missing Values analysis & handling
 
-```{r table1}
-cont_vars <- c("age", "weight_first", "bmi",
-               "sapsi_first", "sofa_first",
-               "icu_los_day", "hospital_los_day",
-               "map_1st", "hr_1st", "spo2_1st")
-cat_vars  <- c("gender_num", "service_unit", "service_num",
-               "day_icu_intime", "hour_icu_intime",
-               "sepsis_flg", "chf_flg", "copd_flg",
-               "renal_flg", "liver_flg", "cad_flg")
+```{r}
+# 1. Percentage of rows with at least one missing value
+total_rows        <- nrow(df)
+rows_with_missing <- sum(!complete.cases(df))
+pct_rows_missing  <- rows_with_missing / total_rows * 100
+cat(sprintf("Rows with ≥1 missing: %d / %d (%.2f%%)\n", 
+            rows_with_missing, total_rows, pct_rows_missing))
 
-tab1 <- CreateTableOne(
-  vars       = c(cont_vars, cat_vars),
-  strata     = "aline_flg",
-  data       = df,
-  factorVars = cat_vars
+# 2. Percentage of missing values per column
+col_pct_missing <- sapply(df, function(col) mean(is.na(col)) * 100)
+
+missing_summary <- data.frame(
+  variable    = names(col_pct_missing),
+  pct_missing = col_pct_missing,
+  row.names   = NULL
 )
-print(tab1, showAllLevels = TRUE, smd = TRUE)
+
+print(missing_summary)
+
+
+```
+
+```{r}
+# we remove the bmi variable from the df
+df <- df %>% select(-bmi)
+```
+
+## Fitting models with lasso to find key covariates
+
+Fitting a logistic regression model to identify covariates that predict treatment
+
+```{r}
+# Load required libraries
+if (!require(glmnet)) install.packages("glmnet")
+library(glmnet)
+library(dplyr)
+library(tibble)
+library(knitr)
+
+# 1. Prepare data: convert character columns to factors, drop missing
+df_lasso <- df %>%
+  mutate(across(where(is.character), as.factor)) %>%
+  drop_na()
+
+# 2. Define response vector y and design matrix X,
+#    excluding outcome and day-of-week/time columns
+y <- df_lasso$aline_flg
+X <- model.matrix(
+  aline_flg ~ . 
+    - day_28_flg 
+    - day_icu_intime 
+    - day_icu_intime_num
+    - icu_exp_flg
+    - icu_los_day
+    - hour_icu_intime,
+  data = df_lasso
+)[, -1]
+
+# 3. Cross-validated LASSO logistic regression
+set.seed(123)
+cvfit <- cv.glmnet(
+  x           = X,
+  y           = y,
+  family      = "binomial",
+  alpha       = 1,
+  standardize = TRUE
+)
+
+# 4. Fit final model at the optimal λ
+lambda_min <- cvfit$lambda.min
+lasso_mod   <- glmnet(
+  x           = X,
+  y           = y,
+  family      = "binomial",
+  alpha       = 1,
+  lambda      = lambda_min,
+  standardize = TRUE
+)
+
+# 5. Extract coefficients into a data frame
+coef_df <- as.matrix(coef(lasso_mod)) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("term")
+
+# Rename the second column to "estimate"
+names(coef_df)[2] <- "estimate"
+
+# 6. Filter on absolute value > 0.01 and sort by magnitude
+coef_df <- coef_df %>% 
+  filter(term != "(Intercept)", abs(estimate) > 0.05) %>% 
+  arrange(desc(abs(estimate)))
+
+treatment_predictors <- coef_df$term
+
+# 7. Print nicely
+kable(coef_df, digits = 3, caption = "LASSO Coefficients (|estimate| > 0.05) for Treatment Model")
+
+
+```
+
+Fitting a logistic regression model to identify covariates that predict outcome using interactions in order to find potential effect modifiers.
+
+```{r}
+# Load required libraries
+if (!require(glmnet)) install.packages("glmnet")
+library(glmnet)
+library(dplyr)
+library(tibble)
+library(knitr)
+
+# 1. Prepare data: convert character columns to factors, drop missing
+df_mod <- df %>%
+  mutate(across(where(is.character), as.factor)) %>%
+  drop_na()
+
+# 2. Build formula including main effects and treatment interactions
+#    Exclude post-treatment/time variables
+excluded <- c(
+  "hosp_exp_flg", "day_icu_intime", "day_icu_intime_num",
+  "icu_exp_flg", "mort_day_censored", "censor_flg",
+  "hour_icu_intime"
+)
+# All covariates except outcome and excluded
+covs <- setdiff(names(df_mod), c("day_28_flg", excluded))
+# Remove treatment from covariates list to add it separately
+other_covs <- setdiff(covs, "aline_flg")
+
+# Construct formula: main effects + interactions with treatment
+form_str <- paste0(
+  "day_28_flg ~ aline_flg + ",
+  paste(other_covs, collapse = " + "), " + ",
+  paste0("aline_flg:", other_covs, collapse = " + ")
+)
+formula_inter <- as.formula(form_str)
+
+# 3. Define response vector y and design matrix X
+y <- df_mod$day_28_flg
+X <- model.matrix(formula_inter, data = df_mod)[, -1]
+
+# 4. Cross-validated LASSO logistic regression
+set.seed(123)
+cvfit_outcome <- cv.glmnet(
+  x           = X,
+  y           = y,
+  family      = "binomial",
+  alpha       = 1,
+  standardize = TRUE
+)
+
+# 5. Fit final model at the optimal λ
+lambda_min_outcome <- cvfit_outcome$lambda.min
+lasso_outcome <- glmnet(
+  x           = X,
+  y           = y,
+  family      = "binomial",
+  alpha       = 1,
+  lambda      = lambda_min_outcome,
+  standardize = TRUE
+)
+
+# 6. Extract coefficients into a data frame
+coef_df_outcome <- as.matrix(coef(lasso_outcome)) %>%
+  as.data.frame() %>%
+  rownames_to_column("term")
+names(coef_df_outcome)[2] <- "estimate"
+
+# 7. Filter on |estimate| > 0.05 and sort by magnitude
+coef_df_outcome <- coef_df_outcome %>%
+  filter(term != "(Intercept)", abs(estimate) > 0.05) %>%
+  arrange(desc(abs(estimate)))
+
+# 8. Save selected terms as potential effect modifiers
+outcome_predictors <- coef_df_outcome$term
+
+potential_effect_modifiers <- coef_df_outcome %>%
+  filter(grepl(":", term)) %>%
+  pull(term)
+
+# 9. Print nicely
+kable(
+  potential_effect_modifiers,
+  digits  = 3,
+  caption = "LASSO Coefficients (|estimate| > 0.05) for 28-Day Mortality Model with Treatment Interactions"
+)
+
+```
+
+```{r}
+potential_effect_modifiers <- sub("^.*:", "", potential_effect_modifiers)
+potential_effect_modifiers
+```
+
+```{r}
+# Assuming potential_confounders and potential_effect_modifiers are already in your environment
+
+library(tibble)
+library(knitr)
+
+# 1. Compute intersection
+outcome_predictors <- union(outcome_predictors,potential_effect_modifiers)
+potential_confounders <- intersect(treatment_predictors, outcome_predictors)
+
+# 2. Create a tidy data frame
+shared_df <- tibble(
+  term = potential_confounders
+)
+
+# 3. Print nicely with a caption
+kable(
+  shared_df,
+)
+
+
+```
+
+```{r}
+potential_confounders <- potential_confounders[!potential_confounders %in% c("service_unitMICU", "service_unitSICU")]
+potential_confounders <- c(potential_confounders, "service_unit")
+
+potential_effect_modifiers <- potential_effect_modifiers[!potential_effect_modifiers %in% c("service_unitMICU", "service_unitSICU")]
+potential_effect_modifiers <- c(potential_effect_modifiers, "service_unit")
+
+treatment_predictors <- treatment_predictors[!treatment_predictors %in% c("service_unitMICU", "service_unitSICU")]
+treatment_predictors <- c(treatment_predictors, "service_unit")
 ```
 
 # 4. Univariate Distributions
 
 ## 4.1 Continuous Covariates
 
-### Age Distribution
+```{r}
+# Split a vector of variable names into continuous vs. categorical/binary
+split_covs <- function(var_list, df) {
+  continuous <- var_list[sapply(var_list, function(v) {
+    col <- df[[v]]
+    is.numeric(col) && length(unique(na.omit(col))) > 2
+  })]
+  categorical <- var_list[sapply(var_list, function(v) {
+    col <- df[[v]]
+    is.factor(col) ||
+    is.character(col) ||
+    (is.numeric(col) && length(unique(na.omit(col))) <= 2)
+  })]
+  list(
+    continuous = continuous,
+    categorical = categorical
+  )
+}
 
-```{r age-hist}
-ggplot(df, aes(x = age, fill = factor(aline_flg))) +
-  geom_histogram(position = "dodge", bins = 30, alpha = 0.8) +
-  scale_fill_manual(values = c("#619CFF", "#F8766D"),
-                    labels = c("No catheter", "Catheter")) +
-  labs(title = "Age Distribution by Catheter",
-       x = "Age (years)", y = "Count", fill = "Catheter") +
-  theme_minimal()
-```
+# Apply to treatment predictors
+tp_split <- split_covs(treatment_predictors, df)
+treatment_predictors_continuous  <- tp_split$continuous
+treatment_predictors_categorical <- tp_split$categorical
 
-### Boxplots
+# Apply to potential effect modifiers
+em_split <- split_covs(potential_effect_modifiers, df)
+potential_effect_modifiers_continuous  <- em_split$continuous
+potential_effect_modifiers_categorical <- em_split$categorical
 
-```{r boxplots}
-box_vars <- c("bmi", "sapsi_first", "sofa_first", "map_1st", "hr_1st", "spo2_1st")
-df %>%
-  select(aline_flg, all_of(box_vars)) %>%
-  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
-  ggplot(aes(x = factor(aline_flg), y = Value)) +
-    geom_boxplot(outlier.size = 0.5) +
-    facet_wrap(~ Variable, scales = "free_y", ncol = 3) +
-    labs(x = "Catheter (0 = no, 1 = yes)", y = NULL) +
-    theme_minimal()
+# Apply split_covs to potential_confounders
+pc_split <- split_covs(potential_confounders, df)
+
+# Extract continuous vs. categorical lists
+potential_confounders_continuous  <- pc_split$continuous
+potential_confounders_categorical <- pc_split$categorical
+
+# Print out the resulting lists
+list(
+  treatment_predictors_continuous,
+  treatment_predictors_categorical,
+  potential_effect_modifiers_continuous,
+  potential_effect_modifiers_categorical,
+  potential_confounders_continuous,
+  potential_confounders_categorical
+)
+
 ```
 
 ### Density Ridges
 
-```{r density-ridges}
-ridge_vars <- c("age", "bmi", "sapsi_first", "sofa_first")
-df %>%
-  select(aline_flg, all_of(ridge_vars)) %>%
-  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
-  ggplot(aes(x = Value, y = factor(aline_flg), fill = factor(aline_flg))) +
-    geom_density_ridges(alpha = 0.7, scale = 1.2) +
-    facet_wrap(~ Variable, scales = "free_x", ncol = 2) +
-    labs(y = "Catheter", fill = "Catheter") +
-    theme_minimal()
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggridges)
+
+# Helper function to plot density ridges if there are continuous vars
+plot_density_ridges <- function(data, group_var, cont_vars, title, y_label) {
+  if (length(cont_vars) == 0) {
+    message("No continuous variables to plot for: ", title)
+    return(invisible(NULL))
+  }
+  # Select the grouping column and continuous vars
+  df_sub <- data %>% select(all_of(c(group_var, cont_vars)))
+  # Only proceed if there is at least one continuous column
+  if (ncol(df_sub) < 2) {
+    message("Not enough columns to pivot for: ", title)
+    return(invisible(NULL))
+  }
+  df_sub %>%
+    pivot_longer(
+      cols      = -all_of(group_var),
+      names_to  = "Variable",
+      values_to = "Value"
+    ) %>%
+    ggplot(aes(x = Value, y = factor(.data[[group_var]]), fill = factor(.data[[group_var]]))) +
+      geom_density_ridges(alpha = 0.7, scale = 1.1) +
+      facet_wrap(~ Variable, scales = "free_x", ncol = 3) +
+      labs(
+        title = title,
+        y     = y_label,
+        fill  = group_var
+      ) +
+      theme_minimal()
+}
+
+# 1) Treatment predictors by catheter use
+plot_density_ridges(
+  data       = df,
+  group_var  = "aline_flg",
+  cont_vars  = treatment_predictors_continuous,
+  title      = "Density Ridges: Treatment Predictors by Catheter Use",
+  y_label    = "Catheter (0=no, 1=yes)"
+)
+
+# 2) Potential confounders by catheter use
+plot_density_ridges(
+  data       = df,
+  group_var  = "aline_flg",
+  cont_vars  = potential_confounders_continuous,
+  title      = "Density Ridges: Potential Confounders by Catheter Use",
+  y_label    = "Catheter (0=no, 1=yes)"
+)
+
+# 3) Potential effect modifiers by 28-day mortality
+plot_density_ridges(
+  data       = df,
+  group_var  = "day_28_flg",
+  cont_vars  = potential_effect_modifiers_continuous,
+  title      = "Density Ridges: Effect Modifiers by 28-Day Mortality",
+  y_label    = "Mortality (0=survived, 1=died)"
+)
+
+
 ```
 
 ## 4.2 Categorical Covariates
 
-```{r cat-plots}
-df %>%
-  mutate(across(all_of(cat_vars), factor)) %>%
-  select(aline_flg, all_of(cat_vars)) %>%
-  pivot_longer(-aline_flg, names_to = "Variable", values_to = "Value") %>%
-  ggplot(aes(x = Value, fill = factor(aline_flg))) +
-    geom_bar(position = "dodge") +
-    facet_wrap(~ Variable, scales = "free_x", ncol = 3) +
-    labs(x = NULL, fill = "Catheter") +
-    theme_minimal()
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Helper to plot bar charts for categorical/binary vars,
+# coercing all selected vars to character so pivot_longer works
+plot_cat_histograms <- function(data, group_var, cat_vars, title, legend_title) {
+  if (length(cat_vars) == 0) {
+    message("No categorical variables to plot for: ", title)
+    return(invisible(NULL))
+  }
+  df_sub <- data %>%
+    # coerce all categorical vars to character to avoid type conflicts
+    mutate(across(all_of(cat_vars), as.character)) %>%
+    select(all_of(c(group_var, cat_vars)))
+    
+  df_sub %>%
+    pivot_longer(
+      cols      = -all_of(group_var),
+      names_to  = "Variable",
+      values_to = "Value"
+    ) %>%
+    mutate(
+      Group = factor(.data[[group_var]]),
+      Value = factor(Value)
+    ) %>%
+    ggplot(aes(x = Value, fill = Group)) +
+      geom_bar(position = "dodge") +
+      facet_wrap(~ Variable, scales = "free_x", ncol = 4) +
+      labs(
+        title = title,
+        x     = NULL,
+        fill  = legend_title
+      ) +
+      theme_minimal()
+}
+
+# 1) Categorical Treatment Predictors by Catheter Use
+plot_cat_histograms(
+  data        = df,
+  group_var   = "aline_flg",
+  cat_vars    = treatment_predictors_categorical,
+  title       = "Categorical Treatment Predictors by Catheter Use",
+  legend_title= "Catheter"
+)
+
+# 2) Categorical Potential Confounders by Catheter Use
+plot_cat_histograms(
+  data        = df,
+  group_var   = "aline_flg",
+  cat_vars    = potential_confounders_categorical,
+  title       = "Categorical Potential Confounders by Catheter Use",
+  legend_title= "Catheter"
+)
+
+# 3) Categorical Potential Effect Modifiers by 28-Day Mortality
+plot_cat_histograms(
+  data        = df,
+  group_var   = "day_28_flg",
+  cat_vars    = potential_effect_modifiers_categorical,
+  title       = "Categorical Effect Modifiers by 28-Day Mortality",
+  legend_title= "Mortality"
+)
+
+
 ```
 
-```{r mosaic-sepsis}
-mosaic(~ aline_flg + sepsis_flg,
-       data = df,
-       shade = TRUE,
-       legend = TRUE,
-       labeling_args = list(
-         set_varnames = c(aline_flg = "Catheter", sepsis_flg = "Sepsis")
-       ))
-```
-
-# 5. Bivariate Relationships
-
-## 5.1 Scatterplot Matrix
-
-```{r scatter-matrix}
-df %>%
-  select(all_of(cont_vars)) %>%
-  ggpairs(upper = list(continuous = wrap("cor", size = 3))) +
-  ggtitle("Scatterplot Matrix of Continuous Covariates")
-```
-
-## 5.2 Correlation Heatmap
-
-```{r correlation-heatmap}
-corr_mat <- cor(df %>% select(all_of(cont_vars)), use = "pairwise.complete.obs")
-ggcorrplot(corr_mat, lab = TRUE) +
-  labs(title = "Correlation Heatmap of Continuous Covariates")
-```
-
-## 5.3 Smoothed Logistic Fit
-
-```{r logistic-smooth}
-ggplot(df, aes(x = age, y = day_28_flg, color = factor(aline_flg))) +
-  geom_jitter(height = 0.025, alpha = 0.3) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-  labs(title = "Probability of Death vs. Age by Catheter",
-       y = "Mortality (0/1)", color = "Catheter") +
-  theme_minimal()
-```
-
-# 6. Missing Data
-
-```{r missing-pattern}
-vis_miss(df) + labs(title = "Missing Data Pattern")
-```
-
-```{r missing-by-group}
-gg_miss_var(df, facet = aline_flg) +
-  labs(title = "Variable-wise Missingness by Catheter Use")
-```
-
-# 7. Dimension Reduction (PCA)
-
-```{r pca-setup-fixed}
-# Restrict to complete cases on the PCA variables, then run PCA
-pca_vars <- cont_vars
-df_pca       <- df %>% drop_na(all_of(pca_vars))
-cont_df_pca  <- df_pca %>% select(all_of(pca_vars))
-pc           <- prcomp(cont_df_pca, center = TRUE, scale. = TRUE)
-```
-
-```{r pca-scree}
-fviz_eig(pc) + labs(title = "PCA Scree Plot")
-```
-
-```{r pca-biplot}
-# Biplot using only the same rows you fed into PCA
-fviz_pca_ind(
-  pc,
-  geom.ind    = "point",
-  habillage   = factor(df_pca$aline_flg),
-  palette     = c("#619CFF", "#F8766D"),
-  addEllipses = TRUE
-) +
-  labs(title = "PCA Biplot by Catheter", color = "Catheter")
-```
-
-# 8. Comorbidity Burden
-
-```{r comorbidity-burden}
-comorbid_vars <- c("sepsis_flg", "chf_flg", "copd_flg", "renal_flg", "liver_flg", "cad_flg")
-df %>%
-  rowwise() %>%
-  mutate(comorb_count = sum(c_across(all_of(comorbid_vars)))) %>%
-  ungroup() %>%
-  ggplot(aes(x = comorb_count, fill = factor(aline_flg))) +
-    geom_histogram(position = "dodge", binwidth = 1, boundary = 0) +
-    scale_x_continuous(breaks = 0:6) +
-    labs(title = "Comorbidity Count by Catheter",
-         x = "Number of Comorbidities", fill = "Catheter") +
-    theme_minimal()
-```
+## Correlation plot
