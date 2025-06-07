@@ -165,3 +165,20 @@ ps_median_imputed_lasso   <- extract_ps(logreg_median_imputed_lasso,
                                         treatment)
 
 ```
+
+```{r}
+# Plot propensity scores for each one of the 6 models
+
+# No lasso models
+plot_ps_hist(df_no_na, ps_no_na_no_lasso, treatment, plot_title="PS No NA | No Lasso")
+plot_ps_hist(df_mean_imputed, ps_mean_imputed_no_lasso, treatment, plot_title="PS Mean Imputation | No Lasso")
+plot_ps_hist(df_median_imputed, ps_median_imputed_no_lasso, treatment,
+             plot_title="PS Median Imputation | No Lasso")
+
+# With lasso models
+plot_ps_hist(df_no_na, ps_no_na_lasso, treatment, plot_title="PS No NA | Lasso")
+plot_ps_hist(df_mean_imputed, ps_mean_imputed_lasso, treatment, 
+             plot_title="PS Mean Imputation | Lasso")
+plot_ps_hist(df_median_imputed, ps_median_imputed_lasso, treatment,
+             plot_title="PS Median Imputation | Lasso")
+```

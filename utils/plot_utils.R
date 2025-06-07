@@ -44,3 +44,46 @@ positivity_check_histograms <- function(df, treatment, confounders, bins = 30) {
     print(p)
   }
 }
+
+plot_ps_hist <- function(df,
+                         ps_vec,
+                         treatment_col,
+                         bins = 30,
+                         plot_title = "Propensity Score Distribution by Treatment") {
+  stopifnot(length(ps_vec) == nrow(df))
+  
+  # 1) add PS column
+  df$propensity_score <- ps_vec
+  
+  # 2) coerce treatment → factor, PS → numeric
+  df[[treatment_col]]   <- as.factor(df[[treatment_col]])
+  df$propensity_score   <- as.numeric(df$propensity_score)
+  
+  # 3) drop bad PS
+  plot_df <- df[is.finite(df$propensity_score), , drop = FALSE]
+  
+  # 4) plot
+  p <- ggplot(plot_df, aes(x = propensity_score, fill = !!rlang::sym(treatment_col))) +
+    geom_histogram(
+      position  = "identity",
+      alpha     = 0.5,
+      bins      = bins,
+      color     = "black",
+      linewidth = 0.2,
+      na.rm     = TRUE
+    ) +
+    labs(
+      title = plot_title,
+      x     = "Propensity Score",
+      y     = "Count",
+      fill  = treatment_col
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position = "top",
+      plot.title     = element_text(face = "bold", hjust = 0.5)
+    )
+  
+  print(p)
+  invisible(df)
+}
