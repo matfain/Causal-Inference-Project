@@ -361,9 +361,9 @@ ate_results <- list(
 for (model_name in names(ate_results)) {
   ate <- ate_results[[model_name]]
   cat(sprintf("Model: %s\n", model_name))
-  cat(sprintf("Mean Treated: %.4f\n", ate$mean_treated))
-  cat(sprintf("Mean Control: %.4f\n", ate$mean_control))
-  cat(sprintf("ATE: %.4f\n", ate$ATE))
+  cat(sprintf("Mean Treated: %.3f\n", ate$mean_treated))
+  cat(sprintf("Mean Control: %.3f\n", ate$mean_control))
+  cat(sprintf("ATE: %.3f\n", ate$ATE))
   cat("\n")
 }
 ```
