@@ -85,5 +85,45 @@ plot_ps_hist <- function(df,
     )
   
   print(p)
-  invisible(df)
+}
+
+plot_iptw_weights <- function(df,
+                              weights,
+                              treatment_col,
+                              bins       = 30,
+                              plot_title = "IPTW Weights by Treatment") {
+  stopifnot(length(weights) == nrow(df))
+  
+  # 1) add weight column
+  df$iptw_weight <- as.numeric(weights)
+  
+  # 2) ensure treatment is a factor
+  df[[treatment_col]] <- as.factor(df[[treatment_col]])
+  
+  # 3) drop non‐finite weights
+  plot_df <- df[is.finite(df$iptw_weight), , drop = FALSE]
+  
+  # 4) plot
+  p <- ggplot(plot_df, aes_string(x = "iptw_weight", fill = treatment_col)) +
+    geom_histogram(
+      position  = "identity",
+      alpha     = 0.5,
+      bins      = bins,
+      color     = "black",
+      linewidth = 0.2,
+      na.rm     = TRUE
+    ) +
+    labs(
+      title = plot_title,
+      x     = "IPTW Weight",
+      y     = "Count",
+      fill  = treatment_col
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position = "top",
+      plot.title     = element_text(face = "bold", hjust = 0.5)
+    )
+  
+  print(p)
 }

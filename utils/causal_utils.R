@@ -47,3 +47,75 @@ extract_ps <- function(fit, df = NULL, confounders = NULL, treatment = NULL) {
   
   stop("`fit` must be either a glm or a glmnet object.")
 }
+
+iptw_weights <- function(df,
+                         ps_vec,
+                         treatment_col,
+                         stabilized     = FALSE,
+                         clip            = FALSE,
+                         clip_quantiles = c(0.05, 0.95)) {
+  stopifnot(length(ps_vec) == nrow(df))
+  
+  # 1) extract & coerce treatment to 0/1
+  trt <- df[[treatment_col]]
+  if (is.factor(trt)) trt <- as.numeric(trt) - 1
+  trt <- as.numeric(trt)
+  
+  # 2) propensity scores
+  ps <- as.numeric(ps_vec)
+  
+  # 3) compute weights
+  if (stabilized) {
+    p_t <- mean(trt, na.rm = TRUE)
+    w   <- ifelse(trt == 1,
+                  p_t       / ps,
+                  (1 - p_t) / (1 - ps))
+  } else {
+    w <- ifelse(trt == 1,
+                1 / ps,
+                1 / (1 - ps))
+  }
+  
+  # 4) optional clipping
+  if (clip) {
+    q <- quantile(w, probs = clip_quantiles, na.rm = TRUE)
+    w[w <  q[1]] <- q[1]
+    w[w >  q[2]] <- q[2]
+  }
+  
+  w
+}
+
+iptw_ate <- function(df,
+                     outcome_col,
+                     treatment_col,
+                     ps_vec,
+                     stabilized     = FALSE,
+                     clip            = FALSE,
+                     clip_quantiles = c(0.05, 0.95)) {
+  # get weights (with clipping if requested)
+  w <- iptw_weights(df,
+                    ps_vec,
+                    treatment_col,
+                    stabilized     = stabilized,
+                    clip            = clip,
+                    clip_quantiles = clip_quantiles)
+  
+  # extract vars
+  y   <- df[[outcome_col]]
+  trt <- df[[treatment_col]]
+  if (is.factor(trt)) trt <- as.numeric(trt) - 1
+  trt <- as.numeric(trt)
+  
+  # weighted means
+  mu1 <- sum(w * trt     * y, na.rm = TRUE) / sum(w * trt, na.rm = TRUE)
+  mu0 <- sum(w * (1-trt) * y, na.rm = TRUE) / sum(w * (1-trt), na.rm = TRUE)
+  ate <- mu1 - mu0
+  
+  list(
+    weights      = w,
+    mean_treated = mu1,
+    mean_control = mu0,
+    ATE          = ate
+  )
+}

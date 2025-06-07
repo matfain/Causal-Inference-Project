@@ -182,3 +182,188 @@ plot_ps_hist(df_mean_imputed, ps_mean_imputed_lasso, treatment,
 plot_ps_hist(df_median_imputed, ps_median_imputed_lasso, treatment,
              plot_title="PS Median Imputation | Lasso")
 ```
+
+## Estimating ATE on 6 models
+
+```{r}
+# compute iptw weights for each of the 6 models
+
+w_no_na <- iptw_weights(
+  df            = df_no_na,
+  ps_vec        = ps_no_na_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+w_mean_imputed <- iptw_weights(
+  df            = df_mean_imputed,
+  ps_vec        = ps_mean_imputed_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+w_median_imputed <- iptw_weights(
+  df            = df_median_imputed,
+  ps_vec        = ps_median_imputed_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+w_no_na_lasso <- iptw_weights(
+  df            = df_no_na,
+  ps_vec        = ps_no_na_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+w_mean_imputed_lasso <- iptw_weights(
+  df            = df_mean_imputed,
+  ps_vec        = ps_mean_imputed_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+
+w_median_imputed_lasso <- iptw_weights(
+  df            = df_median_imputed,
+  ps_vec        = ps_median_imputed_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = TRUE
+)
+
+
+```
+
+```{r}
+# plot iptw weights histograms for all 6 models
+
+plot_iptw_weights(
+  df            = df_no_na,
+  weights       = w_no_na,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (No NA, Stabilized)"
+)
+
+plot_iptw_weights(
+  df            = df_mean_imputed,
+  weights       = w_mean_imputed,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Mean Imputation, Stabilized)"
+)
+
+plot_iptw_weights(
+  df            = df_median_imputed,
+  weights       = w_median_imputed,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Median Imputation, Stabilized)"
+)
+
+plot_iptw_weights(
+  df            = df_no_na,
+  weights       = w_no_na_lasso,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (No NA, Lasso, Stabilized)"
+)
+
+plot_iptw_weights(
+  df            = df_mean_imputed,
+  weights       = w_mean_imputed_lasso,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Mean Imputation, Lasso, Stabilized)"
+)
+
+plot_iptw_weights(
+  df            = df_median_imputed,
+  weights       = w_median_imputed_lasso,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Median Imputation, Lasso, Stabilized)"
+)
+```
+
+```{r}
+# Estimate ATE For all models with clipping and stabilizing
+ate_no_na <- iptw_ate(
+  df            = df_no_na,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_no_na_no_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+ate_mean_imputed <- iptw_ate(
+  df            = df_mean_imputed,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_mean_imputed_no_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+ate_median_imputed <- iptw_ate(
+  df            = df_median_imputed,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_median_imputed_no_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+ate_no_na_lasso <- iptw_ate(
+  df            = df_no_na,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_no_na_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+ate_mean_imputed_lasso <- iptw_ate(
+  df            = df_mean_imputed,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_mean_imputed_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+ate_median_imputed_lasso <- iptw_ate(
+  df            = df_median_imputed,
+  outcome_col   = outcome,
+  treatment_col = treatment,
+  ps_vec        = ps_median_imputed_lasso,
+  stabilized    = TRUE,
+  clip          = TRUE
+)
+
+# Print ATE results for each model
+ate_results <- list(
+  no_na                = ate_no_na,
+  mean_imputed         = ate_mean_imputed,
+  median_imputed       = ate_median_imputed,
+  no_na_lasso          = ate_no_na_lasso,
+  mean_imputed_lasso   = ate_mean_imputed_lasso,
+  median_imputed_lasso = ate_median_imputed_lasso
+)
+
+for (model_name in names(ate_results)) {
+  ate <- ate_results[[model_name]]
+  cat(sprintf("Model: %s\n", model_name))
+  cat(sprintf("Mean Treated: %.4f\n", ate$mean_treated))
+  cat(sprintf("Mean Control: %.4f\n", ate$mean_control))
+  cat(sprintf("ATE: %.4f\n", ate$ATE))
+  cat("\n")
+}
+```
