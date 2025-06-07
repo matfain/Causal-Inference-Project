@@ -1,0 +1,131 @@
+---
+title: "Propensity Scores & IPTW"
+author: "Matan, Hillel & Yael"
+date: "2025-06-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE}
+# libraries, internal imports and constants
+library(tidyverse)
+source("utils/data_pipelines_utils.R")
+source("utils/plot_utils.R")
+```
+
+```{r}
+base_df <- read.csv("data/full_cohort_data.csv")
+
+individual_properties <- c(
+  "age", "gender_num", "weight_first", "bmi"
+  )
+
+sevirity_scores <- c(
+  "sapsi_first", "sofa_first"
+)
+
+vital_signs <- c(
+  "map_1st", "hr_1st", "temp_1st", "spo2_1st"
+)
+
+lab_results <- c(
+  "wbc_first", "hgb_first", "platelet_first", "sodium_first", "potassium_first",
+  "tco2_first", "chloride_first", "bun_first", "creatinine_first", "po2_first",
+  "pco2_first"
+)
+
+first_day <- c("iv_day_1")
+
+comorbidities <- c(
+  "chf_flg", "afib_flg", "renal_flg", "liver_flg", "copd_flg",
+  "cad_flg", "stroke_flg", "mal_flg", "resp_flg"
+)
+
+# stratify hour icu into bins for categorical variable
+admission_properties <- c("service_unit", "day_icu_intime", "hour_icu_intime")
+
+treatment <- c("aline_flg")
+outcome <- c("day_28_flg")
+
+confounders <- c(
+  individual_properties, sevirity_scores, vital_signs, lab_results,
+  first_day, comorbidities, admission_properties
+)
+```
+
+## Missing Values EDA
+
+```{r}
+# Percentage of rows with at least one missing value
+total_rows        <- nrow(base_df)
+rows_with_missing <- sum(!complete.cases(base_df))
+pct_rows_missing  <- rows_with_missing / total_rows * 100
+cat(sprintf("Rows with ≥1 missing: %d / %d (%.2f%%)\n", 
+            rows_with_missing, total_rows, pct_rows_missing))
+
+# Percentage of missing values per column
+col_pct_missing <- sapply(base_df, function(col) mean(is.na(col)) * 100)
+
+missing_summary <- data.frame(
+  variable    = names(col_pct_missing),
+  pct_missing = col_pct_missing,
+  row.names   = NULL
+)
+
+print(missing_summary %>% filter(pct_missing > 0))
+```
+
+```{r}
+clean_df <- base_df %>%
+  select(-bmi)
+
+clean_confounders <- confounders[!confounders %in% "bmi"]
+```
+
+## Validating positivity across all confounders
+
+```{r}
+positivity_check_histograms(clean_df, treatment, clean_confounders)
+
+```
+
+Suspected positivity issues:\
+po2_first - we deny this\
+sofa_first - divide to the intervals: [0, 2,5) [2.5, 5) [5, 7.5) [7.5, 10} [10, \\inf)
+
+## Dividing sofa_first
+
+```{r}
+final_base_df <- clean_df %>%
+  mutate(sofa_first_cat = case_when(
+    sofa_first < 2.5 ~ "0-2.5",
+    sofa_first < 5   ~ "2.5-5",
+    sofa_first < 7.5 ~ "5-7.5",
+    sofa_first < 10  ~ "7.5-10",
+    TRUE             ~ "10+"
+  )) %>%
+  select(-sofa_first)
+
+# change sofa first to sofa_first_cat in the confounders on clean confounders
+final_confounders <- clean_confounders[!clean_confounders %in% "sofa_first"]
+final_confounders <- c(final_confounders, "sofa_first_cat")
+
+positivity_check_histograms(final_base_df, treatment, final_confounders)
+```
+
+```{r}
+# Final datasets based on the final_base_df
+
+# Removed all NA values
+df_no_na <- final_base_df %>%
+  filter(complete.cases(final_base_df))
+
+# mean imputation
+df_mean_imputed <- impute_df(final_base_df, method = "mean")
+
+# median imputation
+df_median_imputed <- impute_df(final_base_df, method = "median")
+```
