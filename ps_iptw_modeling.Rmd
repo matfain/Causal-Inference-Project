@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 source("utils/data_pipelines_utils.R")
 source("utils/plot_utils.R")
+source("utils/causal_utils.R")
 ```
 
 ```{r}
@@ -128,4 +129,39 @@ df_mean_imputed <- impute_df(final_base_df, method = "mean")
 
 # median imputation
 df_median_imputed <- impute_df(final_base_df, method = "median")
+```
+
+## Estimate PS for 3 datasets
+
+```{r}
+# Estimate glm models for each ones without lasso
+logreg_no_na_no_lasso <- model_ps_score(df_no_na, final_confounders, treatment, lasso = FALSE)
+logreg_mean_imputed_no_lasso <- model_ps_score(df_mean_imputed, final_confounders, treatment, lasso = FALSE)
+logreg_median_imputed_no_lasso <- model_ps_score(df_median_imputed, final_confounders, treatment, lasso = FALSE)
+
+# Estimate glm models for each ones with lasso
+logreg_no_na_lasso <- model_ps_score(df_no_na, final_confounders, treatment, lasso = TRUE)
+logreg_mean_imputed_lasso <- model_ps_score(df_mean_imputed, final_confounders, treatment, lasso = TRUE)
+logreg_median_imputed_lasso <- model_ps_score(df_median_imputed, final_confounders, treatment, lasso = TRUE)
+```
+
+```{r}
+# extract propensity‐scores using extract_ps()
+ps_no_na_no_lasso         <- extract_ps(logreg_no_na_no_lasso)
+ps_mean_imputed_no_lasso  <- extract_ps(logreg_mean_imputed_no_lasso)
+ps_median_imputed_no_lasso<- extract_ps(logreg_median_imputed_no_lasso)
+
+ps_no_na_lasso            <- extract_ps(logreg_no_na_lasso,
+                                        df_no_na,
+                                        final_confounders,
+                                        treatment)
+ps_mean_imputed_lasso     <- extract_ps(logreg_mean_imputed_lasso,
+                                        df_mean_imputed,
+                                        final_confounders,
+                                        treatment)
+ps_median_imputed_lasso   <- extract_ps(logreg_median_imputed_lasso,
+                                        df_median_imputed,
+                                        final_confounders,
+                                        treatment)
+
 ```
