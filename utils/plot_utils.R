@@ -33,7 +33,7 @@ positivity_check_histograms <- function(df, treatment, confounders, bins = 30) {
         title = sprintf("Positivity Check for %s", conf),
         x     = conf,
         y     = "Count",
-        fill  = treatment
+        fill  = "treatment"
       ) +
       theme_minimal(base_size = 14) +
       theme(
@@ -76,7 +76,7 @@ plot_ps_hist <- function(df,
       title = plot_title,
       x     = "Propensity Score",
       y     = "Count",
-      fill  = treatment_col
+      fill  = "treatment"
     ) +
     theme_minimal(base_size = 14) +
     theme(
@@ -117,7 +117,7 @@ plot_iptw_weights <- function(df,
       title = plot_title,
       x     = "IPTW Weight",
       y     = "Count",
-      fill  = treatment_col
+      fill  = "treatment"
     ) +
     theme_minimal(base_size = 14) +
     theme(
