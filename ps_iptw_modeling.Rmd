@@ -367,3 +367,71 @@ for (model_name in names(ate_results)) {
   cat("\n")
 }
 ```
+
+## Variance Estimation
+
+```{r}
+res1 <- bootstrap_iptw_ate(
+  df            = df_no_na,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = FALSE,
+  plot_title    = "Bootstrap IPTW-ATE (No NA, No Lasso)"
+)
+```
+
+```{r}
+res2 <- bootstrap_iptw_ate(
+  df            = df_mean_imputed,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = FALSE,
+  plot_title    = "Bootstrap IPTW-ATE (Mean Imputation, No Lasso)"
+)
+```
+
+```{r}
+res3 <- bootstrap_iptw_ate(
+  df            = df_median_imputed,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = FALSE,
+  plot_title    = "Bootstrap IPTW-ATE (Median Imputation, No Lasso)"
+)
+```
+
+```{r}
+res4 <- bootstrap_iptw_ate(
+  df            = df_no_na,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = TRUE,
+  plot_title    = "Bootstrap IPTW-ATE (No NA, Lasso)"
+)
+```
+
+```{r}
+res5 <- bootstrap_iptw_ate(
+  df            = df_mean_imputed,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = TRUE,
+  plot_title    = "Bootstrap IPTW-ATE (Mean Imputation, Lasso)"
+)
+```
+
+```{r}
+res6 <- bootstrap_iptw_ate(
+  df            = df_median_imputed,
+  confounders   = final_confounders,
+  treatment_col = treatment,
+  outcome_col   = outcome,
+  lasso         = TRUE,
+  plot_title    = "Bootstrap IPTW-ATE (Median Imputation, Lasso)"
+)
+```

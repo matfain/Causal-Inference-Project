@@ -119,3 +119,77 @@ iptw_ate <- function(df,
     ATE          = ate
   )
 }
+
+bootstrap_iptw_ate <- function(df,
+                               confounders,
+                               treatment_col,
+                               outcome_col,
+                               lasso = FALSE,
+                               n_bootstrap = 200,
+                               stabilized = TRUE,
+                               clip = TRUE,
+                               clip_quantiles = c(0.05, 0.95),
+                               plot_title = "Bootstrap Distribution of IPTW‐ATE") {
+  # parallel setup
+  library(doParallel)
+  library(foreach)
+  cores <- parallel::detectCores() - 1
+  cl    <- makeCluster(cores)
+  registerDoParallel(cl)
+  
+  # run bootstrap in parallel, exporting the model & ATE functions
+  ates <- foreach(
+    b        = seq_len(n_bootstrap),
+    .combine = c,
+    .packages = c("glmnet"),
+    .export   = c("model_ps_score", "extract_ps", "iptw_ate", "iptw_weights")
+  ) %dopar% {
+    # 1) resample
+    idx  <- sample(seq_len(nrow(df)), replace = TRUE)
+    df_b <- df[idx, , drop = FALSE]
+    
+    # 2) fit PS
+    ps_fit <- model_ps_score(df_b, confounders, treatment_col, lasso)
+    ps_vec <- extract_ps(ps_fit, df_b, confounders, treatment_col)
+    
+    # 3) compute ATE
+    iptw_ate(
+      df_b,
+      outcome_col,
+      treatment_col,
+      ps_vec,
+      stabilized     = stabilized,
+      clip            = clip,
+      clip_quantiles  = clip_quantiles
+    )$ATE
+  }
+  
+  stopCluster(cl)
+  
+  # percentile CI & SD
+  ci     <- quantile(ates, probs = c(0.025, 0.975), na.rm = TRUE)
+  sd_est <- sd(ates, na.rm = TRUE)
+  
+  # print results
+  cat(sprintf("95%% percentile CI: [%.3f, %.3f]\n", ci[1], ci[2]))
+  cat(sprintf("SD of ATE estimator: %.3f\n", sd_est))
+  
+  # histogram with CI lines
+  library(ggplot2)
+  df_plot <- data.frame(ATE = ates)
+  p <- ggplot(df_plot, aes(x = ATE)) +
+    geom_histogram(bins = 30, color = "black", fill = "plum") +
+    geom_vline(xintercept = ci, linetype = "dashed", size = 1) +
+    labs(
+      title = plot_title,
+      x     = "ATE",
+      y     = "Frequency"
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5)
+    )
+  print(p)
+  
+  invisible(list(ates = ates, ci = ci, sd = sd_est))
+}
