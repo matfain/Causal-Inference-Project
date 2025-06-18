@@ -185,8 +185,114 @@ plot_ps_hist(df_median_imputed, ps_median_imputed_lasso, treatment,
 
 ## Estimating ATE on 6 models
 
+#### IPTW Weights Un-Clipped computation + histograms
+
 ```{r}
-# compute iptw weights for each of the 6 models
+# compute iptw weights for each of the 6 models, un - clipped
+w_no_na_not_clipped <- iptw_weights(
+  df            = df_no_na,
+  ps_vec        = ps_no_na_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+
+w_mean_imputed_not_clipped <- iptw_weights(
+  df            = df_mean_imputed,
+  ps_vec        = ps_mean_imputed_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+
+w_median_imputed_not_clipped <- iptw_weights(
+  df            = df_median_imputed,
+  ps_vec        = ps_median_imputed_no_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+
+w_no_na_lasso_not_clipped <- iptw_weights(
+  df            = df_no_na,
+  ps_vec        = ps_no_na_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+
+w_mean_imputed_lasso_not_clipped <- iptw_weights(
+  df            = df_mean_imputed,
+  ps_vec        = ps_mean_imputed_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+
+w_median_imputed_lasso_not_clipped <- iptw_weights(
+  df            = df_median_imputed,
+  ps_vec        = ps_median_imputed_lasso,
+  treatment_col = treatment,
+  stabilized    = TRUE,
+  clip = FALSE
+)
+```
+
+```{r}
+# plot iptw weights histograms for all 6 models based on un - clipped
+plot_iptw_weights(
+  df            = df_no_na,
+  weights       = w_no_na_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (No NA, Stabilized, Not Clipped)"
+)
+
+plot_iptw_weights(
+  df            = df_mean_imputed,
+  weights       = w_mean_imputed_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Mean Imputation, Stabilized, Not Clipped)"
+)
+
+plot_iptw_weights(
+  df            = df_median_imputed,
+  weights       = w_median_imputed_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Median Imputation, Stabilized, Not Clipped)"
+)
+
+plot_iptw_weights(
+  df            = df_no_na,
+  weights       = w_no_na_lasso_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (No NA, Lasso, Stabilized, Not Clipped)"
+)
+
+plot_iptw_weights(
+  df            = df_mean_imputed,
+  weights       = w_mean_imputed_lasso_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Mean Imputation, Lasso, Stabilized, Not Clipped)"
+)
+
+plot_iptw_weights(
+  df            = df_median_imputed,
+  weights       = w_median_imputed_lasso_not_clipped,
+  treatment_col = treatment,
+  bins          = 30,
+  plot_title    = "IPTW Weights (Median Imputation, Lasso, Stabilized, Not Clipped)"
+)
+```
+
+#### IPTW Weights Clipped computation + histograms
+
+```{r}
+# compute iptw weights for each of the 6 models, clipped
 
 w_no_na <- iptw_weights(
   df            = df_no_na,
@@ -241,7 +347,7 @@ w_median_imputed_lasso <- iptw_weights(
 ```
 
 ```{r}
-# plot iptw weights histograms for all 6 models
+# plot iptw weights histograms for all 6 models based on clipped
 
 plot_iptw_weights(
   df            = df_no_na,
