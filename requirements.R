@@ -16,6 +16,7 @@ packages <- c(
   "knitr",
   "tibble",
   "ranger",
+  "tableone",
 )
 
 install_if_missing <- function(p) {
