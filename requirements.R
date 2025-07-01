@@ -16,7 +16,9 @@ packages <- c(
   "knitr",
   "tibble",
   "ranger",
-  "tableone",
+  "xgboost",
+  "doParallel",
+  "foreach",
 )
 
 install_if_missing <- function(p) {
