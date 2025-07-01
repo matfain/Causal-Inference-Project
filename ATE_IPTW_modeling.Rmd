@@ -474,6 +474,59 @@ for (model_name in names(ate_results)) {
 }
 ```
 
+```{r, warning=FALSE}
+# -------------------------------------------------------------
+# Assemble parallel lists: data, weights, and ATE (DM) objects
+# -------------------------------------------------------------
+df_list <- list(
+  no_na                = df_no_na,
+  mean_imputed         = df_mean_imputed,
+  median_imputed       = df_median_imputed,
+  no_na_lasso          = df_no_na,
+  mean_imputed_lasso   = df_mean_imputed,
+  median_imputed_lasso = df_median_imputed
+)
+
+w_list <- list(
+  no_na                = w_no_na,
+  mean_imputed         = w_mean_imputed,
+  median_imputed       = w_median_imputed,
+  no_na_lasso          = w_no_na_lasso,
+  mean_imputed_lasso   = w_mean_imputed_lasso,
+  median_imputed_lasso = w_median_imputed_lasso
+)
+
+ate_results <- list(
+  no_na                = ate_no_na,
+  mean_imputed         = ate_mean_imputed,
+  median_imputed       = ate_median_imputed,
+  no_na_lasso          = ate_no_na_lasso,
+  mean_imputed_lasso   = ate_mean_imputed_lasso,
+  median_imputed_lasso = ate_median_imputed_lasso
+)
+
+use_covars <- TRUE
+
+for (nm in names(ate_results)) {
+
+  dm  <- ate_results[[nm]]
+
+  reg <- iptw_reg_ate(
+           df            = df_list[[nm]],
+           outcome_col   = outcome,
+           treatment_col = treatment,
+           weights       = w_list[[nm]],
+           covars        = if (use_covars) final_confounders else NULL,
+           family        = binomial
+         )
+
+  cat("\nModel:", nm, "\n")
+  cat(sprintf("  ATE (weighted diff-in-means): %.3f\n", dm$ATE))
+  cat(sprintf("  ATE (weighted outcome model): %.3f   [95%% CI %.3f, %.3f]\n",
+              reg$ATE, reg$CI[1], reg$CI[2]))
+}
+```
+
 ## Variance Estimation
 
 ```{r}

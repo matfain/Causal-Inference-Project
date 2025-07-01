@@ -193,3 +193,40 @@ bootstrap_iptw_ate <- function(df,
   
   invisible(list(ates = ates, ci = ci, sd = sd_est))
 }
+
+# -------------------------------------------------------------------
+#  Weighted outcome-model ATE
+#    • If covars = NULL     →  Y ~ A             (pure IPTW)
+#    • If covars = c(...)   →  Y ~ A + covars    (augmented IPTW)
+# -------------------------------------------------------------------
+iptw_reg_ate <- function(df,
+                         outcome_col,
+                         treatment_col,
+                         weights,
+                         covars  = NULL,
+                         family  = binomial) {
+  
+  df_w <- df %>% mutate(.w = weights)
+  
+  rhs  <- if (is.null(covars)) {
+    treatment_col
+  } else {
+    paste(c(treatment_col, covars), collapse = " + ")
+  }
+  fmla <- as.formula(paste(outcome_col, "~", rhs))
+  
+  fit  <- glm(fmla,
+              data    = df_w,
+              family  = family,
+              weights = .w)
+  
+  # extract treatment effect
+  trt_coef <- coef(summary(fit))[treatment_col, ]
+  tau <- trt_coef["Estimate"]
+  se  <- trt_coef["Std. Error"]
+  ci  <- tau + c(-1, 1) * qnorm(.975) * se
+  
+  list(ATE = tau, SE = se, CI = ci, model = fit)
+}
+
+
