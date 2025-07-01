@@ -14,7 +14,8 @@ packages <- c(
   "glmnet",
   "dplyr",
   "knitr",
-  "tibble"
+  "tibble",
+  "ranger",
 )
 
 install_if_missing <- function(p) {
