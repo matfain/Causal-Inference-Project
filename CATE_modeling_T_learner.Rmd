@@ -19,7 +19,7 @@ library(knitr)
 
 source("utils/data_pipelines_utils.R")
 source("utils/plot_utils.R")
-source("utils/cate_utils_final.R")
+source("utils/cate_utils.R")
 ```
 
 ```{r}
