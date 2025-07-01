@@ -544,8 +544,7 @@ res6 <- bootstrap_iptw_ate(
 
 ## Analyzing Extreme PS Values
 
-To analyze the extreme PS values, we will create a stable row-level identifier across datasets, extract the propensity scores, and identify the extremes in each model’s PS distribution. 
-We will then select the top and bottom percentiles (90th and 10th) of PS values across all models and compare these extreme groups on each baseline variable.
+To analyze the extreme PS values, we will create a stable row-level identifier across datasets, extract the propensity scores, and identify the extremes in each model’s PS distribution. We will then select the top and bottom percentiles (90th and 10th) of PS values across all models and compare these extreme groups on each baseline variable.
 
 ```{r}
 # Add a stable row-level identifier ad-hoc for identify extreme PS values across datasets
@@ -616,7 +615,6 @@ q_tbl <- bind_rows(
 
 print(q_tbl, n = nrow(q_tbl))
 ```
-
 
 ```{r}
 # Flag extremes in each dataset
