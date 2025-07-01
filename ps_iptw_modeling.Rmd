@@ -541,3 +541,114 @@ res6 <- bootstrap_iptw_ate(
   plot_title    = "Bootstrap IPTW-ATE (Median Imputation, Lasso)"
 )
 ```
+
+## Analyzing Extreme PS Values
+
+To analyze the extreme PS values, we will create a stable row-level identifier across datasets, extract the propensity scores, and identify the extremes in each model’s PS distribution. 
+We will then select the top and bottom percentiles (90th and 10th) of PS values across all models and compare these extreme groups on each baseline variable.
+
+```{r}
+# Add a stable row-level identifier ad-hoc for identify extreme PS values across datasets
+
+for (nm in c("df_no_na", "df_mean_imputed", "df_median_imputed")) {
+  tmp <- get(nm)
+  tmp$row_id <- as.integer(row.names(tmp))   # preserves original index
+  assign(nm, tmp, envir = .GlobalEnv)
+}
+
+id_var  <- "row_id"
+treat   <- "aline_flag"
+```
+
+```{r}
+# Create a list of data frames with propensity scores
+ps_dfs <- list(
+  no_na_no_lasso      = tibble(row_id = df_no_na$row_id,
+                               no_na_no_lasso = ps_no_na_no_lasso),
+  mean_imp_no_lasso   = tibble(row_id = df_mean_imputed$row_id,
+                               mean_imp_no_lasso = ps_mean_imputed_no_lasso),
+  median_imp_no_lasso = tibble(row_id = df_median_imputed$row_id,
+                               median_imp_no_lasso = ps_median_imputed_no_lasso),
+  no_na_lasso         = tibble(row_id = df_no_na$row_id,
+                               no_na_lasso = ps_no_na_lasso),
+  mean_imp_lasso      = tibble(row_id = df_mean_imputed$row_id,
+                               mean_imp_lasso = ps_mean_imputed_lasso),
+  median_imp_lasso    = tibble(row_id = df_median_imputed$row_id,
+                               median_imp_lasso = ps_median_imputed_lasso)
+)
+
+# Full-join one after another → wide table, 1 row per row_id
+master <- reduce(ps_dfs, full_join, by = "row_id")
+```
+
+```{r}
+# Define the cut-offs
+top_q    <- 0.9
+bottom_q <- 0.1
+
+# Grab IDs in each tail for every PS column
+top_ids <- lapply(master[-1], \(ps)
+  master$row_id[ ps >= quantile(ps, probs = top_q,    na.rm = TRUE) ])
+
+bot_ids <- lapply(master[-1], \(ps)
+  master$row_id[ ps <= quantile(ps, probs = bottom_q, na.rm = TRUE) ])
+
+# Keep only patients that appear in all tail-sets
+common_top <- Reduce(intersect, top_ids)
+common_bot <- Reduce(intersect, bot_ids)
+
+length(common_top)   # how many in top tail everywhere?
+length(common_bot)   # how many in bottom tail everywhere?
+
+```
+
+```{r}
+# Create a table with quantiles for each model
+q_tbl <- bind_rows(
+  lapply(names(master[-1]), function(col) {
+    tibble(
+      model       = col,
+      q_bottom10  = quantile(master[[col]], probs = bottom_q, na.rm = TRUE),
+      q_top90     = quantile(master[[col]], probs = top_q,    na.rm = TRUE)
+    )
+  })
+)
+
+print(q_tbl, n = nrow(q_tbl))
+```
+
+
+```{r}
+# Flag extremes in each dataset
+flag_extremes <- function(df) {
+  df %>% mutate(
+    extreme_group = case_when(
+      row_id %in% common_top ~ "Top-tail (all models)",
+      row_id %in% common_bot ~ "Bottom-tail (all models)",
+      TRUE                   ~ "Other"
+    )
+  )
+}
+
+df_no_na          <- flag_extremes(df_no_na)
+df_mean_imputed   <- flag_extremes(df_mean_imputed)
+df_median_imputed <- flag_extremes(df_median_imputed)
+
+```
+
+```{r}
+# Create a table comparing extreme groups by each variable
+library(tableone)
+
+vars_to_show <- setdiff(names(df_no_na),
+                        c(id_var, treat, "extreme_group"))
+
+tab <- CreateTableOne(
+  vars       = vars_to_show,
+  strata     = "extreme_group",
+  data       = df_no_na,
+  factorVars = vars_to_show[sapply(df_no_na[vars_to_show], is.factor)]
+)
+print(tab, quote = FALSE, smd = TRUE)
+
+```
