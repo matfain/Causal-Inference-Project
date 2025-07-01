@@ -237,3 +237,123 @@ plot_cate_grid <- function(grid_df, modifier, learner_name) {
   print(p)
   invisible(p)
 }
+
+
+# ============================================================================
+#  S-Learner helpers  (RF / XGB base learners)
+#  Re-uses align_levels() and build_grid() from plot_utils if already loaded.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 1  Fit a single base learner on (Y ~ A + X) -------------------------------
+# ---------------------------------------------------------------------------
+fit_base_s <- function(df, formula,
+                       learner = c("rf", "xgb"),
+                       rf_ntree = 500,
+                       xgb_nrounds = 300, xgb_eta = 0.05, xgb_depth = 6) {
+  
+  learner <- match.arg(learner)
+  
+  if (learner == "rf") {
+    y_name <- all.vars(formula)[1]
+    df_rf  <- df
+    if (is.numeric(df_rf[[y_name]]))
+      df_rf[[y_name]] <- factor(df_rf[[y_name]], levels = c(0, 1))
+    
+    mod <- ranger::ranger(
+      formula      = formula,
+      data         = df_rf,
+      probability  = TRUE,
+      num.trees    = rf_ntree,
+      mtry         = floor(sqrt(ncol(df_rf) - 2))
+    )
+    pred_prob <- function(newdata) {
+      pr <- predict(mod, newdata)$predictions
+      pr[, "1"]
+    }
+    return(list(fit = mod, pred = pred_prob))
+  }
+  
+  # ------------------------ XGB -------------------------------------------
+  X <- model.matrix(formula, data = df)[, -1, drop = FALSE]
+  y <- df[[all.vars(formula)[1]]]
+  if (is.factor(y)) y <- as.numeric(y) - 1
+  
+  dtrain <- xgboost::xgb.DMatrix(data = X, label = y)
+  
+  mod <- xgboost::xgb.train(
+    params = list(
+      objective   = "binary:logistic",
+      eta         = xgb_eta,
+      max_depth   = xgb_depth,
+      eval_metric = "logloss"
+    ),
+    data    = dtrain,
+    nrounds = xgb_nrounds,
+    verbose = 0
+  )
+  
+  pred_prob <- function(newdata) {
+    newX <- model.matrix(formula, data = newdata)[, -1, drop = FALSE]
+    
+    # align columns if needed
+    train_cols <- mod$feature_names
+    miss <- setdiff(train_cols, colnames(newX))
+    if (length(miss) > 0)
+      newX <- cbind(newX,
+                    matrix(0, nrow(newX), length(miss),
+                           dimnames = list(NULL, miss)))
+    extra <- setdiff(colnames(newX), train_cols)
+    if (length(extra) > 0)
+      newX <- newX[, setdiff(colnames(newX), extra), drop = FALSE]
+    newX <- newX[, train_cols, drop = FALSE]
+    
+    stats::predict(mod, newX)
+  }
+  
+  list(fit = mod, pred = pred_prob)
+}
+
+# ---------------------------------------------------------------------------
+# 2  Fit S-learner and return CATE vector -----------------------------------
+# ---------------------------------------------------------------------------
+fit_s_learner <- function(df, treatment, outcome, covars,
+                          learner = c("rf", "xgb"), ...) {
+  
+  rhs  <- paste(c(treatment, covars), collapse = " + ")
+  fmla <- as.formula(paste(outcome, "~", rhs))
+  
+  base <- fit_base_s(df, fmla, learner = learner, ...)
+  
+  # counterfactual predictions for every row
+  df1 <- df; df1[[treatment]] <- 1
+  df0 <- df; df0[[treatment]] <- 0
+  
+  mu1 <- base$pred(df1)
+  mu0 <- base$pred(df0)
+  
+  tibble(mu1 = mu1, mu0 = mu0, tau = mu1 - mu0,
+         base_model = list(base))
+}
+
+# ---------------------------------------------------------------------------
+# 3  Grid-mean CATE using fitted base model ---------------------------------
+# ---------------------------------------------------------------------------
+cate_grid_mean_s <- function(base_model, df, treatment,
+                             modifier, grid_vals) {
+  
+  map_dfr(grid_vals, function(g) {
+    newdata <- df
+    newdata[[modifier]] <- g
+    newdata <- if (exists("align_levels")) align_levels(newdata, df) else newdata
+    
+    # counterfactual sets
+    d1 <- newdata; d1[[treatment]] <- 1
+    d0 <- newdata; d0[[treatment]] <- 0
+    
+    mu1 <- base_model$pred(d1)
+    mu0 <- base_model$pred(d0)
+    
+    tibble(mod_value = g, cate_mean = mean(mu1 - mu0))
+  })
+}
