@@ -1,0 +1,129 @@
+---
+title: "CATE_double_ML_modeling"
+author: "Matan & Hillel & Yael"
+date: "2025-07-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ranger)
+library(xgboost)
+library(knitr)
+
+source("utils/data_pipelines_utils.R")
+source("utils/plot_utils.R")
+source("utils/doubleml_utils.R")   # <-- new helpers
+source("utils/cate_utils.R")
+```
+
+```{r}
+# ---------- data & identical preprocessing as previous notebooks -----------
+base_df <- read_csv("data/full_cohort_data.csv", show_col_types = FALSE)
+
+treatment <- "aline_flg"
+outcome   <- "day_28_flg"
+
+individual_properties <- c("age","gender_num","weight_first","bmi")
+severity_scores       <- c("sapsi_first","sofa_first")
+vital_signs           <- c("map_1st","hr_1st","temp_1st","spo2_1st")
+lab_results           <- c("wbc_first","hgb_first","platelet_first","sodium_first",
+                           "potassium_first","tco2_first","chloride_first",
+                           "bun_first","creatinine_first","po2_first","pco2_first")
+first_day     <- "iv_day_1"
+comorbidities <- c("chf_flg","afib_flg","renal_flg","liver_flg","copd_flg",
+                   "cad_flg","stroke_flg","mal_flg","resp_flg")
+admission_properties <- c("service_unit","day_icu_intime","hour_icu_intime")
+
+confounders <- c(individual_properties, severity_scores, vital_signs,
+                 lab_results, first_day, comorbidities, admission_properties)
+
+clean_df <- base_df %>% select(-bmi)
+confounders <- setdiff(confounders, "bmi")
+
+final_base_df <- clean_df %>%
+  mutate(sofa_first_cat = case_when(
+    sofa_first < 2.5 ~ "0-2.5",
+    sofa_first < 5   ~ "2.5-5",
+    sofa_first < 7.5 ~ "5-7.5",
+    sofa_first < 10  ~ "7.5-10",
+    TRUE             ~ "10+")) %>%
+  select(-sofa_first)
+
+confounders <- setdiff(confounders, "sofa_first") %>% append("sofa_first_cat")
+
+df_median <- final_base_df %>%
+  select(all_of(c(treatment, outcome, confounders))) %>%
+  impute_df(method = "median")
+
+```
+
+```{r}
+effect_modifiers <- c("age","gender_num","weight_first",
+                      "service_unit","liver_flg")
+
+# convert numeric binaries to factors
+for (mod in effect_modifiers) {
+  x <- df_median[[mod]]
+  if (is.numeric(x) && setequal(na.omit(unique(x)), c(0, 1))) {
+    df_median[[mod]] <- factor(x, levels = c(0, 1))
+  }
+}
+
+K_folds        <- 5
+tau_learners   <- c("rf","xgb")
+nuisance_learn <- list(outcome = "rf",
+                       propensity = "glm")
+
+```
+
+```{r}
+r_results <- list()
+
+for (tl in tau_learners) {
+  cat("\n=== Fitting R-learner (tau:", tl, ") ===\n")
+  r_fit <- r_learner(
+    df_median,
+    treatment = treatment,
+    outcome   = outcome,
+    covars    = confounders,
+    K         = K_folds,
+    learners  = c(nuisance_learn, tau = tl)
+  )
+  r_results[[paste0("R-", tl)]] <- r_fit
+}
+
+```
+
+#### Patient level CATE & Effect Modifiers
+
+```{r}
+for (ln in names(r_results)) {
+  tau <- r_results[[ln]]$tau_vec
+  for (mod in effect_modifiers) {
+    plot_cate_vs_modifier(df_median, tau, modifier = mod,
+                          learner_name = ln)
+  }
+}
+
+```
+
+#### Grid average mean CATE
+
+```{r}
+for (ln in names(r_results)) {
+  tau_fit <- r_results[[ln]]$tau_model
+  for (mod in effect_modifiers) {
+    grid_vals <- build_grid(df_median, mod)
+    grid_df   <- cate_grid_mean_tau(tau_fit, df_median, mod, grid_vals)
+    plot_cate_grid(grid_df, mod, ln)
+  }
+}
+
+```
+
+#### 
