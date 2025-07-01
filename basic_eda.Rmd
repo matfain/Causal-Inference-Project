@@ -1,0 +1,676 @@
+---
+title: "basic_eda"
+author: "Matan & Hillel & Yael"
+date: "2025-07-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# libraries, internal imports and constants
+library(tidyverse)
+source("utils/data_pipelines_utils.R")
+source("utils/plot_utils.R")
+source("utils/causal_utils.R")
+full_df <- read.csv("data/full_cohort_data.csv")
+```
+
+```{r}
+by_tx_plot2 <- full_df %>% 
+  group_by(aline_flg, day_28_flg) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  mutate(
+    outcome = factor(day_28_flg, levels = c(0, 1),
+                     labels  = c("Alive", "Death")),
+    tx      = factor(aline_flg,  levels = c(0, 1),
+                     labels  = c("No IAC", "IAC"))
+  ) %>% 
+  ggplot(aes(tx, n, fill = outcome)) +
+  geom_col(position = position_dodge(width = .7),
+           width = .6, colour = "grey30") +
+  scale_y_continuous(expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(                           # <<–– here
+    values = c("Alive" = "#8DBFAF",            # coral
+               "Death" = "#D8A3A8"),           # teal
+    name   = "28-day\noutcome"
+  ) +
+  labs(
+    title = "28-day Mortality (outcome), by IAC (treatment)",
+    x     = NULL,
+    y     = "Number of Patients"
+  )
+
+
+by_tx_plot2
+
+severity_scores <- c("sapsi_first", "sofa_first")
+
+for (score in severity_scores) {
+  
+  # Summarise risk by quartile ---------------------------------
+  q_tbl <- full_df %>% 
+    filter(!is.na(.data[[score]])) %>% 
+    mutate(quartile = ntile(.data[[score]], 4L)) %>% 
+    group_by(quartile) %>% 
+    summarise(
+      deaths = sum(day_28_flg == 1),
+      n      = n(),
+      risk   = deaths / n,
+      .groups = "drop"
+    ) %>% 
+    mutate(
+      se  = sqrt(risk * (1 - risk) / n),
+      lwr = pmax(0, risk - 1.96 * se),
+      upr = pmin(1, risk + 1.96 * se),
+      quartile = factor(quartile)
+    )
+  
+  # Dot + whisker plot -----------------------------------------
+  p <- ggplot(q_tbl, aes(quartile, risk)) +
+    geom_point(size = 4, colour = "#D8A3A8") +
+    geom_errorbar(aes(ymin = lwr, ymax = upr),
+                  width = .15, colour = "#D8A3A8", linewidth = 0.8) +
+    geom_line(aes(group = 1), colour = "grey50", linewidth = 0.6, linetype = 2) +
+    scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1),
+      limits = c(0, 0.35),
+      expand = expansion(mult = c(0, .05))
+    ) +
+    labs(
+      title = paste("28-day Mortality Risk vs.", toupper(score), "Quartile"),
+      x     = paste(toupper(score), "Quartile"),
+      y     = "Observed Risk (%)")
+  print(p)
+}
+
+
+# ──────────────────────────────────────────────────────────────
+#  EDA plots for the Causal-Inference Project slide deck
+#    • Outcome distribution (counts & risk)
+#    • Severity-score quartile trends
+#    • SAPS-SOFA scatter
+#    • Comorbidity risk plots
+# ──────────────────────────────────────────────────────────────
+library(tidyverse)
+
+#── Paths ───────────────────────────────────────────────────────
+data_dir <- "G:/My Drive/Stats/R/Applied Introduction to Causal Inference/Causal-Inference-Project/data"
+out_dir  <- "G:/My Drive/Stats/R/Applied Introduction to Causal Inference/EDA_Charts"
+
+full_df  <- read_csv(file.path(data_dir, "full_cohort_data.csv"))
+
+#── Colour palette ─────────────────────────────────────────────
+col_alive <- "#8DBFAF"  # teal
+col_death <- "#D8A3A8"  # coral
+col_point <- "#D8A3A8"
+
+#===============================================================================
+# 1. Outcome by treatment  ─────────────────────────────────────────────────────
+#===============================================================================
+
+## 1a. Counts bar chart (Alive / Death, dodged) ----------------
+counts_plot <- full_df %>% 
+  group_by(aline_flg, day_28_flg) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  mutate(outcome = factor(day_28_flg, levels = c(0, 1),
+                          labels  = c("Alive", "Death")),
+         tx      = factor(aline_flg, levels = c(0, 1),
+                          labels  = c("No IAC", "IAC"))) %>% 
+  ggplot(aes(tx, n, fill = outcome)) +
+  geom_col(position = position_dodge(0.7),
+           width = .6, colour = "grey30") +
+  scale_y_continuous(expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = c("Alive" = col_alive,
+                               "Death" = col_death),
+                    name = "28-day\noutcome") +
+  labs(title = "28-Day Mortality (outcome), by IAC (treatment)",
+       x = NULL, y = "Number of patients")
+
+ggsave("counts_by_treatment.png", counts_plot,
+       path = out_dir, width = 8, height = 5)
+
+## 1b. Risk dot + CI plot (vertical) ---------------------------
+risk_tbl <- full_df %>% 
+  group_by(tx = factor(aline_flg, levels = c(0, 1),
+                       labels = c("No IAC", "IAC"))) %>% 
+  summarise(
+    deaths = sum(day_28_flg == 1),
+    n      = n(),
+    risk   = deaths / n,
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    se  = sqrt(risk * (1 - risk) / n),
+    lwr = pmax(0, risk - 1.96 * se),
+    upr = pmin(1, risk + 1.96 * se)
+  )
+
+risk_plot <- ggplot(risk_tbl, aes(tx, risk, colour = tx)) +
+  geom_point(size = 5, colour = "#D8A3A8") +
+  geom_errorbar(aes(ymin = lwr, ymax = upr),
+                width = .15, linewidth = 0.8, colour = "#D8A3A8") +
+  scale_y_continuous(labels = scales::percent_format(1),
+                     limits = c(0, 0.30),
+                     expand = expansion(mult = c(0, .05))) +
+  labs(title = "28-Day Mortality (outcome) Risk, by IAC (treatment)",
+       subtitle = "Estimated Wald 95% CI",
+       x = NULL, y = "Observed risk (%)")
+
+ggsave("risk_by_treatment.png", risk_plot,
+       path = out_dir, width = 8, height = 5)
+
+#===============================================================================
+# 2. Severity-score quartile trends  ───────────────────────────────────────────
+#===============================================================================
+severity_scores <- c("sapsi_first", "sofa_first")
+
+for (score in severity_scores) {
+  
+  # quartiles
+  q_tbl <- full_df %>% 
+    filter(!is.na(.data[[score]])) %>% 
+    mutate(quartile = ntile(.data[[score]], 4L)) %>% 
+    group_by(quartile) %>% 
+    summarise(
+      deaths = sum(day_28_flg == 1),
+      n      = n(),
+      risk   = deaths / n,
+      .groups = "drop"
+    ) %>% 
+    mutate(
+      se  = sqrt(risk * (1 - risk) / n),
+      lwr = pmax(0, risk - 1.96 * se),
+      upr = pmin(1, risk + 1.96 * se),
+      quartile = factor(quartile,
+                        labels = c("Lowest","Mid-Low","Mid-High","Highest"))
+    )
+  
+  p <- ggplot(q_tbl, aes(quartile, risk, group = 1)) +
+    geom_point(size = 4, colour = col_point) +
+    geom_errorbar(aes(ymin = lwr, ymax = upr),
+                  width = .15, colour = col_point, linewidth = 0.8) +
+    geom_line(colour = "grey50", linewidth = 0.6, linetype = 2) +
+    scale_y_continuous(labels = scales::percent_format(1),
+                       limits = c(0, 0.35),
+                       expand = expansion(mult = c(0, .05))) +
+    labs(title = paste("28-day Mortality (outcome) Risk, by", toupper(score), "Quartile"),
+         x = paste(toupper(score), "Quartile"),
+         y = "Observed Risk (%)")
+  
+  ggsave(paste0("risk_by_", score, ".png"), p,
+         path = out_dir, width = 8, height = 5)
+}
+
+#===============================================================================
+# 3. SAPS I vs SOFA scatter  ───────────────────────────────────────────────────
+#===============================================================================
+scatter_df <- full_df %>% 
+  filter(!is.na(sapsi_first), !is.na(sofa_first)) %>% 
+  mutate(outcome = factor(day_28_flg, 0:1, c("Alive","Death")))
+
+scatter_plot <- ggplot(scatter_df,
+                       aes(sapsi_first, sofa_first, colour = outcome)) +
+  geom_point(alpha = 0.40, size = 2) +
+  scale_colour_manual(values = c("Alive" = col_alive,
+                                 "Death" = col_death),
+                      name = "28-day\noutcome") +
+  labs(title = "Joint distribution of SAPS I and SOFA",
+       x = "SAPS I (first 24 h)",
+       y = "SOFA (first 24 h)") +
+  coord_cartesian(expand = 0.02)
+
+ggsave("scatter_sapsi_sofa.png", scatter_plot,
+       path = out_dir, width = 6.5, height = 5.5)
+
+#===============================================================================
+# 4. Comorbidity risk plots  ───────────────────────────────────────────────────
+#===============================================================================
+comorbidities <- c(
+  "chf_flg", "afib_flg", "renal_flg", "liver_flg", "copd_flg",
+  "cad_flg", "stroke_flg", "mal_flg", "resp_flg"
+)
+
+for (var in comorbidities) {
+  
+  tbl <- full_df %>% 
+    filter(!is.na(.data[[var]])) %>% 
+    mutate(status = factor(.data[[var]], 0:1, c("No","Yes"))) %>% 
+    group_by(status) %>% 
+    summarise(
+      deaths = sum(day_28_flg == 1),
+      n      = n(),
+      risk   = deaths / n,
+      .groups = "drop"
+    ) %>% 
+    mutate(
+      se  = sqrt(risk * (1 - risk) / n),
+      lwr = pmax(0, risk - 1.96 * se),
+      upr = pmin(1, risk + 1.96 * se)
+    )
+  
+  p <- ggplot(tbl, aes(status, risk, group = 1)) +
+    geom_point(size = 4, colour = col_point) +
+    geom_errorbar(aes(ymin = lwr, ymax = upr),
+                  width = .15, colour = col_point, linewidth = 0.8) +
+    geom_line(colour = "grey50", linewidth = 0.6, linetype = 2) +
+    scale_y_continuous(labels = scales::percent_format(1),
+                       limits = c(0, 0.5),
+                       expand = expansion(mult = c(0, .05))) +
+    labs(title = paste("28-day Mortality (outcome) Risk, by", toupper(var)),
+         x = paste(toupper(var), "(Yes / No)"),
+         y = "Observed Risk (%)")
+  
+  ggsave(paste0("risk_by_", var, ".png"), p,
+         path = out_dir, width = 8, height = 5)
+}
+
+
+#===============================================================================
+# 5. Continuous vital signs & lab results  ─────────────────────────────────────
+#     Classic box-plots (Tukey whiskers + outlier dots)
+#===============================================================================
+vital_signs <- c("map_1st", "hr_1st",  "temp_1st", "spo2_1st")
+lab_results <- c(
+  "wbc_first", "hgb_first", "platelet_first", "sodium_first", "potassium_first",
+  "tco2_first", "chloride_first", "bun_first", "creatinine_first",
+  "po2_first", "pco2_first"
+)
+
+cont_vars <- c(vital_signs, lab_results)
+
+for (var in cont_vars) {
+  
+  df <- full_df %>% 
+    filter(!is.na(.data[[var]])) %>% 
+    mutate(outcome = factor(day_28_flg, 0:1, c("Alive","Death")))
+  
+  p <- ggplot(df, aes(outcome, .data[[var]], fill = outcome)) +
+    geom_boxplot(
+      alpha         = 0.35,
+      colour        = "grey30",
+      width         = 0.55,
+      outlier.shape = 16,       # solid circles for outliers
+      outlier.size  = 1.4,
+      outlier.alpha = 0.4
+      # coef = 1.5 is the default → Tukey whiskers, horizontal caps included
+    ) +
+    scale_fill_manual(
+      values = c("Alive" = col_alive,
+                 "Death" = col_death),
+      guide  = "none"
+    ) +
+    labs(
+      title = paste(toupper(var), "distribution by 28-day outcome"),
+      x     = NULL,
+      y     = toupper(var)
+    )
+  
+  ggsave(
+    filename = paste0("box_", var, ".png"),
+    plot     = p,
+    width    = 8, height = 5,
+    path     = out_dir
+  )
+}
+
+
+#===============================================================================
+# 6. Individual-level properties  ───────────────────────────────────────────────
+#     • Continuous vars → density overlay (Alive vs Death)
+#     • Binary gender   → stacked bar chart
+#===============================================================================
+individual_properties <- c("age", "gender_num", "weight_first", "bmi")
+
+for (var in individual_properties) {
+  
+  plot_file <- paste0("prop_", var, ".png")
+  
+  if (var == "gender_num") {
+    # ---------- Gender: stacked bar -------------------------------------------
+    df <- full_df %>% 
+      filter(!is.na(gender_num)) %>% 
+      mutate(
+        gender  = factor(gender_num, 0:1, c("Female", "Male")),
+        outcome = factor(day_28_flg, 0:1, c("Alive","Death"))
+      )
+    
+    p <- ggplot(df, aes(gender, fill = outcome)) +
+      geom_bar(position = "fill", colour = "grey30") +
+      scale_y_continuous(labels = scales::percent_format()) +
+      scale_fill_manual(values = c("Alive" = col_alive,
+                                   "Death" = col_death),
+                        name   = "28-day\noutcome") +
+      labs(
+        title = "Gender distribution by 28-day outcome",
+        x     = NULL,
+        y     = "Within-gender %"
+      )
+    
+  } else {
+    # ---------- Continuous: density overlay -----------------------------------
+    df <- full_df %>% 
+      filter(!is.na(.data[[var]])) %>% 
+      mutate(outcome = factor(day_28_flg, 0:1, c("Alive","Death")))
+    
+    p <- ggplot(df, aes(.data[[var]], fill = outcome, colour = outcome)) +
+      geom_density(alpha = 0.35, linewidth = 0.8, adjust = 1.1) +
+      scale_fill_manual(values = c("Alive" = col_alive,
+                                   "Death" = col_death),
+                        guide = "none") +
+      scale_colour_manual(values = c("Alive" = col_alive,
+                                     "Death" = col_death),
+                          guide = "none") +
+      labs(
+        title = paste(toupper(var), "density by 28-day Mortality (outcome)"),
+        x     = toupper(var),
+        y     = "Density"
+      )
+  }
+  
+  ggsave(
+    filename = plot_file,
+    plot     = p,
+    width    = 8, height = 5,
+    path     = out_dir
+  )
+}
+
+
+# ── End of script ──────────────────────────────────────────────
+
+var <- "temp_1st"
+
+p <- full_df %>%
+  filter(temp_1st > 40) %>%
+  mutate(outcome = factor(day_28_flg, 0:1, c("Alive", "Death"))) %>%
+  ggplot(aes(outcome, .data[[var]], fill = outcome)) +
+  geom_boxplot(
+    alpha         = 0.35,
+    colour        = "grey30",
+    width         = 0.55,
+    outlier.shape = 16,
+    outlier.size  = 1.4,
+    outlier.alpha = 0.4
+  ) +
+  scale_fill_manual(values = c("Alive" = col_alive,
+                               "Death" = col_death),
+                    guide  = "none") +
+  labs(
+    title = paste(toupper(var), "distribution by 28-day outcome"),
+    x = NULL, y = toupper(var)
+  )
+
+ggsave(
+  filename = paste0("box_", var, ".png"),
+  plot     = p,
+  width    = 8, height = 5,
+  path     = out_dir
+)
+
+
+# ── Compute % missing per column ─────────────────────────────
+missing_summary <- full_df %>%
+  summarise(across(everything(), ~ mean(is.na(.)) * 100)) %>%
+  pivot_longer(everything(),
+               names_to  = "variable",
+               values_to = "pct_missing") %>%
+  filter(pct_missing > 0) %>%
+  arrange(desc(pct_missing))
+
+# ── Plot ─────────────────────────────────────────────────────
+p_missing <- ggplot(missing_summary,
+                    aes(x = pct_missing,
+                        y = reorder(variable, pct_missing))) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = sprintf("%.1f%%", pct_missing)),
+            hjust = -0.05, size = 3) +
+  labs(title = "Percent missing per variable",
+       x = "% missing", y = NULL) +
+  coord_cartesian(xlim = c(0, max(missing_summary$pct_missing) * 1.15))
+
+ggsave("missing_by_variable.png",
+       plot = p_missing,
+       path = out_dir, width = 8, height = 6)
+
+
+
+# ── Re-compute % missing per column (BMI excluded) ───────────
+missing_summary_nobmi <- full_df %>% 
+  select(-bmi) %>%                                        # drop BMI first
+  summarise(across(everything(), ~ mean(is.na(.)) * 100)) %>% 
+  pivot_longer(everything(),
+               names_to  = "variable",
+               values_to = "pct_missing") %>% 
+  filter(pct_missing > 0) %>% 
+  arrange(desc(pct_missing))
+
+# ── Plot ─────────────────────────────────────────────────────
+p_missing_nobmi <- ggplot(missing_summary_nobmi,
+                          aes(x = pct_missing,
+                              y = reorder(variable, pct_missing))) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = sprintf("%.1f%%", pct_missing)),
+            hjust = -0.05, size = 3) +
+  labs(title = "Percent missing per variable (BMI removed)",
+       x = "% missing", y = NULL) +
+  coord_cartesian(xlim = c(0, max(missing_summary_nobmi$pct_missing) * 1.15))
+
+ggsave("missing_by_variable_noBMI.png",
+       plot = p_missing_nobmi,
+       path = out_dir, width = 8, height = 6)
+
+
+
+library(UpSetR)
+
+# 1. 0/1 integer matrix of missings
+miss_mat <- as.data.frame(is.na(full_df)) |>
+  mutate(across(everything(), ~ as.integer(.)))     # TRUE→1, FALSE→0
+
+# 2. Keep columns with ≥1 NA, then remove duplicates
+nz_cols <- names(which(colSums(miss_mat) > 0))
+miss_nonzero <- miss_mat[nz_cols]
+
+# drop exact duplicates
+miss_unique <- miss_nonzero[!duplicated(as.data.frame(t(miss_nonzero)))]
+
+# choose up to 10 most-missing unique columns
+top_cols <- head(names(sort(colSums(miss_unique), TRUE)), 10)
+miss_top <- miss_unique[top_cols]
+
+# 3. Draw UpSet
+png(file.path(out_dir, "missing_upset.png"),
+    width = 900, height = 550, res = 120)
+
+upset(
+  miss_top,
+  order.by        = "freq",
+  mb.ratio        = c(0.6, 0.4),
+  mainbar.y.label = "Row count (missing pattern)",
+  sets.x.label    = "Missing count per variable"
+)
+
+dev.off()
+
+
+library(dplyr)
+
+num_cols <- names(which(sapply(full_df, is.numeric)))
+
+df_mean_imputed <- full_df %>% 
+  select(-bmi) %>%
+  mutate(across(all_of(setdiff(num_cols, "bmi")), 
+                ~ ifelse(is.na(.x), mean(.x, na.rm = TRUE), .x)))
+
+df_median_imputed <- full_df %>% 
+  mutate(across(all_of(setdiff(num_cols, "bmi")),
+                ~ ifelse(is.na(.x), median(.x, na.rm = TRUE), .x)))
+
+# ── 2. Density-overlay plotting function ───────────────────────────
+plot_imputation_densities <- function(var, out_dir = NULL) {
+  
+  combined <- bind_rows(
+    No_NA    = full_df,
+    Mean   = df_mean_imputed,
+    Median = df_median_imputed,
+    .id    = "set"
+  ) |>
+    select(set, !!sym(var)) |>
+    filter(!is.na(.data[[var]]))
+  
+  p <- ggplot(combined,
+              aes(.data[[var]], colour = set, fill = set)) +
+    geom_density(alpha = 0.20, adjust = 1.1) +
+    scale_colour_manual(values = c(No_NA = "grey30",
+                                   Mean = "#1F78B4",
+                                   Median = "#33A02C"),
+                        name = NULL) +
+    scale_fill_manual(values = c(No_NA = NA,
+                                 Mean = "#1F78B4",
+                                 Median = "#33A02C"),
+                      guide = "none") +
+    labs(title = paste("Observed vs imputed:", var),
+         x = var, y = "Density")
+  
+    ggsave(filename = paste0("density_impute_", var, ".png"),
+           plot     = p,
+           width    = 8, height = 5,
+           path     = "G:/My Drive/Stats/R/Applied Introduction to Causal Inference/EDA_Charts")
+  
+  p
+}
+
+# ── 3. Example: MAP (first recorded) ───────────────────────────────
+plot_imputation_densities("iv_day_1")
+
+
+
+long_df <- bind_rows(
+  raw    = full_df,
+  mean   = df_mean_imputed,
+  median = df_median_imputed,
+  .id    = "set"
+) |>
+  select(set, all_of(num_cols)) |>
+  pivot_longer(
+    -set,
+    names_to  = "variable",
+    values_to = "value"
+  ) |>
+  filter(!is.na(value))
+
+# ── 2. Facetted density plot for *all* numeric variables ─────────────────────
+p_all <- ggplot(long_df,
+                aes(value, colour = set, fill = set)) +
+  geom_density(alpha = 0.22, adjust = 1.1) +
+  facet_wrap(~ variable, scales = "free", ncol = 4) +
+  scale_colour_manual(values = c(raw = "grey30",
+                                 mean = "#1F78B4",
+                                 median = "#33A02C"),
+                      name = NULL) +
+  scale_fill_manual(values = c(raw = NA,
+                               mean = "#1F78B4",
+                               median = "#33A02C"),
+                    guide = "none") +
+  labs(title = "Raw vs mean- vs median-imputed distributions",
+       x = "Value", y = "Density")
+# + theme_bw(base_size = 10)    #  ← uncomment your preferred theme
+
+# ── 3. Save the composite figure (PNG or PDF) ───────────────────────────────
+ggsave("imputation_compare_all.png",
+       plot   = p_all,
+       width  = 14,   # tweak as needed
+       height = 10,
+       path   = "G:/My Drive/Stats/R/Applied Introduction to Causal Inference/EDA_Charts")
+```
+
+```{r}
+# ── 1. % missing for each variable within each service unit ──────────────
+var_miss_by_unit <- full_df %>% 
+  group_by(service_unit) %>% 
+  summarise(across(everything(), ~ mean(is.na(.)) * 100),
+            .groups = "drop") %>% 
+  pivot_longer(-service_unit,
+               names_to  = "variable",
+               values_to = "pct_missing") %>% 
+  filter(pct_missing > 0)                                  # keep vars with NAs
+
+# ── 2. Order variables by overall % missing (descending) ────────────────
+var_order <- var_miss_by_unit %>% 
+  group_by(variable) %>% 
+  summarise(overall = max(pct_missing), .groups = "drop") %>% 
+  arrange(desc(overall)) %>% 
+  pull(variable)
+
+# ── 3. Order service units by % rows with any NA (descending) ───────────
+unit_order <- full_df %>% 
+  mutate(row_has_na = if_any(everything(), is.na)) %>% 
+  group_by(service_unit) %>% 
+  summarise(pct_rows_with_na = mean(row_has_na) * 100,
+            .groups = "drop") %>% 
+  arrange(desc(pct_rows_with_na)) %>% 
+  pull(service_unit)
+
+# apply factor levels so ggplot respects the order
+var_miss_by_unit <- var_miss_by_unit %>% 
+  mutate(
+    variable     = factor(variable,     levels = var_order),
+    service_unit = factor(service_unit, levels = unit_order)
+  )
+
+# ── 4. Heat-map ─────────────────────────────────────────────────────────
+p <- ggplot(var_miss_by_unit,
+            aes(variable, service_unit, fill = pct_missing)) +
+  geom_tile(colour = "white", linewidth = 0.2) +
+  scale_fill_viridis_c(name = "% missing", option = "C") +
+  labs(title = "% of Missing Values, by variable and Service Unit",
+       x = "Variable",
+       y = "Service unit") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# ── 5. Save the plot ────────────────────────────────────────────────────
+ggsave(file.path(out_dir, "var_miss_by_unit.png"),
+       plot  = p,
+       width = 10, height = 6)
+
+
+
+# ── 1. % missing per variable within each aline_flg group ───────────────────
+miss_by_aline <- full_df %>% 
+  mutate(aline_flg = factor(aline_flg, levels = c(0, 1),
+                            labels  = c("No IAC", "IAC"))) %>% 
+  group_by(aline_flg) %>% 
+  summarise(across(everything(), ~ mean(is.na(.)) * 100),
+            .groups = "drop") %>% 
+  pivot_longer(-aline_flg,
+               names_to  = "variable",
+               values_to = "pct_missing") %>% 
+  filter(pct_missing > 0)                              # keep only vars with NAs
+
+# ── 2. Order variables by overall % missing (max across groups) ─────────────
+var_order <- miss_by_aline %>% 
+  group_by(variable) %>% 
+  summarise(overall = max(pct_missing), .groups = "drop") %>% 
+  arrange(desc(overall)) %>% 
+  pull(variable)
+
+miss_by_aline$variable <- factor(miss_by_aline$variable,
+                                 levels = var_order)
+
+# ── 3. Heat-map ─────────────────────────────────────────────────────────────
+ggplot(miss_by_aline,
+       aes(variable, aline_flg, fill = pct_missing)) +
+  geom_tile(colour = "white", linewidth = 0.2) +
+  scale_fill_viridis_c(name = "% missing", option = "C") +
+  labs(title = "% of Missing Values, by variable and Treatment Group",
+       x = "Variable", y = "Treatment Group") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# ── 4. Save the plot ───────────────────────────────────────────────────────
+ggsave(file.path(out_dir, "var_miss_by_aline.png"),
+       width = 10, height = 6)
+```
