@@ -23,6 +23,8 @@ source("utils/plot_utils.R")                  # optional plotting
 source("utils/causal_utils_standardization.R")
 ```
 
+#### Data Loading & Basic Preprocessing
+
 ```{r}
 base_df <- read_csv("data/full_cohort_data.csv", show_col_types = FALSE)
 
@@ -65,12 +67,12 @@ confounders <- c(
 
 ```
 
+We apply same stratification we used in the IPTW notebook to handle positivity violation of the SOFA first variable and remove the bmi covariate.
+
 ```{r}
-# 2.1 drop BMI (too sparse)
 clean_df <- base_df %>% select(-bmi)
 clean_confounders <- confounders[!confounders %in% "bmi"]
 
-# 2.2 create SOFA categorical to resolve positivity
 final_base_df <- clean_df %>%
   mutate(sofa_first_cat = case_when(
     sofa_first < 2.5 ~ "0-2.5",
@@ -85,6 +87,8 @@ final_confounders <- clean_confounders[!clean_confounders %in% "sofa_first"] %>%
   append("sofa_first_cat")
 
 ```
+
+We divide the data into 3 pipelines based on different imputation methods.
 
 ```{r}
 df_no_na <- final_base_df %>%
@@ -101,33 +105,50 @@ df_median_imputed <- final_base_df %>%
 
 ```
 
+#### Pipeline Definition
+
+We run 9 pipelines (3 imputation methods x 3 models).\
+In each pipeline we run bootstrap estimation by fitting the model and calculating the ATE using standardization. We also present plots of the ATE empirical distribution and the model's predicted probabilities conditioned on the treatment assignment.
+
 ```{r}
 run_pipeline <- function(df, dataset_name, model_type) {
 
-  cat("----", dataset_name, "|", model_type, "----\n")
+  set.seed(42)
+  cat("\n----", dataset_name, "|", model_type, "----\n")
 
-  # 4.1 outcome model
+  ## 1) fit outcome model
   fit <- model_outcome(
     df, final_confounders, treatment, outcome, model_type
   )
 
-  # 4.2 counterfactual predictions
+  ## 2) counterfactual predictions
   preds <- predict_counterfactual(
     fit, df, final_confounders, treatment, outcome
   )
 
-  # 4.3 point estimate
+  ## 3) point estimate
   est <- standardization_ate(preds)
 
-  # 4.4 bootstrap variance (200 draws)
+  ## 4) bootstrap variance + ATE histogram  (prints automatically)
   boot <- bootstrap_standardization_ate(
     df, final_confounders, treatment, outcome,
-    model_type        = model_type,
-    n_bootstrap       = 200,
-    plot_title        = sprintf("Bootstrap ATE – %s | %s",
-                                dataset_name, model_type)
+    model_type   = model_type,
+    n_bootstrap  = 200,
+    plot_title   = sprintf("Bootstrap ATE – %s | %s",
+                           dataset_name, model_type)
   )
 
+  ## 5) predicted-risk histogram (observed treatment group assignment)
+  observed_pred <- ifelse(df[[treatment]] == 1, preds$y1_hat, preds$y0_hat)
+
+  plot_predicted_risk_hist(
+  df, observed_pred,
+  group_col = outcome,                           # <- NEW ARG
+  plot_title = sprintf("Predicted risk by outcome – %s | %s",
+                       dataset_name, model_type)
+)
+
+  ## 6) return tidy one-row tibble
   tibble(
     dataset  = dataset_name,
     model    = model_type,
@@ -142,6 +163,8 @@ run_pipeline <- function(df, dataset_name, model_type) {
 
 ```
 
+#### Pipeline Running
+
 ```{r}
 datasets <- list(
   no_na          = df_no_na,
@@ -150,21 +173,36 @@ datasets <- list(
 )
 
 model_types <- c("logreg", "logreg_l1", "rf")
+```
 
-results_tbl <- purrr::map_dfr(
-  names(datasets),
-  function(dname) {
-    df <- datasets[[dname]]
-    purrr::map_dfr(
-      model_types,
-      ~ run_pipeline(df, dname, .x)
-    )
-  }
+```{r}
+results_no_na <- purrr::map_dfr(
+  model_types,
+  ~ run_pipeline(df_no_na, "no_na", .x)
 )
 ```
 
 ```{r}
+results_mean <- purrr::map_dfr(
+  model_types,
+  ~ run_pipeline(df_mean_imputed, "mean_imputed", .x)
+)
+```
+
+```{r}
+results_median <- purrr::map_dfr(
+  model_types,
+  ~ run_pipeline(df_median_imputed, "median_imputed", .x)
+)
+```
+
+#### Final Results Comparison
+
+```{r}
+results_tbl <- bind_rows(results_no_na, results_mean, results_median)
+
 kable(results_tbl,
       digits = 3,
       caption = "Standardisation ATE (bootstrap 95% CI, 200 draws)")
+
 ```

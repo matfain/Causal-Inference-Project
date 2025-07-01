@@ -141,13 +141,12 @@ bootstrap_standardization_ate <- function(df,
   sd_est <- sd(ates)
   
   # Quick histogram
-  suppressMessages(
-    ggplot(data.frame(ate = ates), aes(x = ate)) +
-      geom_histogram(bins = 30, colour = "black", fill = "skyblue") +
+  p <-ggplot(data.frame(ate = ates), aes(x = ate)) +
+      geom_histogram(bins = 30, colour = "black", fill = "plum") +
       geom_vline(xintercept = ci, linetype = "dashed") +
       labs(title = plot_title, x = "ATE", y = "Frequency") +
       theme_minimal(base_size = 14)
-  )
+  print(p)
   
   list(ates = ates, ci = ci, sd = sd_est)
 }
