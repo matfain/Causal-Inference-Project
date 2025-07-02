@@ -165,3 +165,48 @@ plot_predicted_risk_hist <- function(df,
   invisible(p)
 }
 
+
+# ---------------------------------------------------------------------------
+# Plot helpers For CATE Notebooks 
+# ---------------------------------------------------------------------------
+plot_cate_vs_modifier <- function(df, cate_vec, modifier, learner_name, modifier_labels, ylim_range = c(-0.2, 0.2)) {
+  
+  plot_df <- df %>% mutate(tau = cate_vec, mod = .data[[modifier]])
+  
+  if (modifier == "sofa_first_cat") {
+    plot_df$mod <- factor(plot_df$mod, levels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10", "10+"))
+  }
+  
+  x_label <- modifier_labels[[modifier]] %||% modifier
+  
+  if (is.numeric(plot_df$mod)) {
+    p <- ggplot(plot_df, aes(mod, tau)) +
+      geom_point(alpha = .2) +
+      geom_smooth(method = "loess", se = FALSE, colour = "red") +
+      ylim(ylim_range[1], ylim_range[2]) +
+      labs(x = x_label, y = "Estimated CATE")
+  } else {
+    p <- ggplot(plot_df, aes(mod, tau, fill = mod)) +
+      geom_boxplot(outlier.alpha = .15) +
+      ylim(ylim_range[1], ylim_range[2]) +
+      guides(fill = "none") +
+      labs(x = x_label, y = "Estimated CATE")
+  }
+  print(p); invisible(p)
+}
+
+plot_cate_grid <- function(grid_df, modifier, learner_name) {
+  
+  if (is.numeric(grid_df$mod_value)) {
+    p <- ggplot(grid_df, aes(mod_value, cate_mean)) +
+      geom_line() + geom_point() +
+      labs(title = sprintf("Mean CATE vs %s (%s)", modifier, learner_name),
+           x = modifier, y = "Mean CATE")
+  } else {
+    p <- ggplot(grid_df, aes(mod_value, cate_mean)) +
+      geom_col(fill = "steelblue") +
+      labs(title = sprintf("Mean CATE by %s (%s)", modifier, learner_name),
+           x = modifier, y = "Mean CATE")
+  }
+  print(p); invisible(p)
+}
