@@ -18,7 +18,7 @@ packages <- c(
   "ranger",
   "xgboost",
   "doParallel",
-  "foreach",
+  "foreach"
 )
 
 install_if_missing <- function(p) {
