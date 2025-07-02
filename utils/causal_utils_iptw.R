@@ -1,3 +1,22 @@
+# -------------------------------------------------------------------
+#  Naïve / Unadjusted ATE  (difference-in-means)
+# -------------------------------------------------------------------
+naive_ate <- function(df, outcome_col, treatment_col) {
+  y   <- df[[outcome_col]]
+  trt <- df[[treatment_col]]
+  if (is.factor(trt)) trt <- as.numeric(trt) - 1
+  trt <- as.numeric(trt)
+  
+  mu1 <- mean(y[trt == 1], na.rm = TRUE)   # treated mean
+  mu0 <- mean(y[trt == 0], na.rm = TRUE)   # control mean
+  ate <- mu1 - mu0
+  
+  list(mean_treated = mu1,
+       mean_control = mu0,
+       ATE          = ate)
+}
+
+
 # function to accept a df, confounders, treatment, boolean value for lasso regularization.
 # Return logistic regression model with lasso regularization if boolean is true, otherwise return a model without lasso regularization.
 # If lasso is true then use CV to find the best lambda.
