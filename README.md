@@ -15,7 +15,7 @@
 * 🎯 estimate the **ATE** with:  
   * ⚖️ IPTW using PS weighted difference in means & PS weighted outcome modeling  
   * 📏 Standardisation 
-* 🧩 study **CATE** with metalearners:
+* 🧩 estimate **CATE** with metalearners:
   * 🌲 + 🦾 S-Learner using RF & XGBoost base learners
   * 🌲 + 🦾 T-Learner using RF & XGBoost base learners 
 
