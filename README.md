@@ -5,7 +5,7 @@ This repo contains our applied causal inference final project.
 > Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
 
 Key steps  
-* preprocess the **MIMIC-II** cohort (1 776 adults, ~45 % treated)  
+* preprocess the **MIMIC-II** cohort dataset 
 * estimate the **ATE** with:  
   * IPTW using PS weighted difference in means & PS weighted outcome modeling  
   * Standardisation 
