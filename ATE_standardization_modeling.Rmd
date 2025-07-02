@@ -11,16 +11,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, warning=FALSE}
 ## libraries + internal utils
-library(tidyverse)    # dplyr, ggplot2, purrr
-library(glmnet)       # L1 logistic
-library(ranger)       # random forest
-library(doParallel)   # parallel bootstrap
+library(tidyverse)    
+library(glmnet)       
+library(ranger)       
+library(doParallel)   
 library(foreach)
-library(knitr)        # nice tables
+library(knitr)        
 
-source("utils/data_pipelines_utils.R")          # impute_df()
-source("utils/plot_utils.R")                  # optional plotting
-source("utils/causal_utils_standardization.R")
+source("utils/data_pipelines_utils.R")          
+source("utils/plot_utils.R")                
+source("utils/ate_utils_standardization.R")
 ```
 
 #### Data Loading & Basic Preprocessing
