@@ -69,9 +69,18 @@ df_median <- final_base_df %>%
 #### Definitions for base learners and effect modifiers
 
 ```{r}
-## Choose effect modifiers (can overlap with confounders)
-effect_modifiers <- c("age", "gender_num", "weight_first",
-                      "service_unit", "liver_flg")
+effect_modifiers <- c("sapsi_first","sofa_first_cat","age","gender_num","chf_flg","renal_flg","copd_flg","service_unit")
+
+modifier_labels <- list(
+  "sapsi_first" = "SAPS-I Score",
+  "sofa_first_cat" = "SOFA Score Category", 
+  "age" = "Age (years)",
+  "gender_num" = "Gender",
+  "chf_flg" = "Congestive Heart Failure",
+  "renal_flg" = "Renal Disease",
+  "copd_flg" = "Chronic Obstructive Pulmonary Disease",
+  "service_unit" = "Service Unit Type"
+)
 
 ## Re-cast binary-numeric modifiers to factors  (affects df_median only)
 for (mod in effect_modifiers) {
@@ -108,11 +117,12 @@ for (learner in base_learners) {
 
 ```{r}
 for (learner in names(results_list)) {
-  tau_vec <- results_list[[learner]]$tau
-  for (mod in effect_modifiers) {
-    plot_cate_vs_modifier(df_median, tau_vec, modifier = mod,
-                          learner_name = learner)
-  }
+ tau_vec <- results_list[[learner]]$tau
+ for (mod in effect_modifiers) {
+   plot_cate_vs_modifier(df_median, tau_vec, modifier = mod,
+                         learner_name = learner, modifier_labels = modifier_labels,
+                         ylim_range = c(-0.5, 0.5))
+ }
 }
 
 ```

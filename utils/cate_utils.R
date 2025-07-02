@@ -169,26 +169,28 @@ cate_grid_mean_s <- function(base_model, df, treatment,
 # ---------------------------------------------------------------------------
 # 5.  Plot helpers (unchanged) ----------------------------------------------
 # ---------------------------------------------------------------------------
-
-plot_cate_vs_modifier <- function(df, cate_vec, modifier, learner_name,
-                                  bins = 10) {
+plot_cate_vs_modifier <- function(df, cate_vec, modifier, learner_name, modifier_labels, ylim_range = c(-0.2, 0.2)) {
   
-  stopifnot(modifier %in% names(df))
   plot_df <- df %>% mutate(tau = cate_vec, mod = .data[[modifier]])
   
+  if (modifier == "sofa_first_cat") {
+    plot_df$mod <- factor(plot_df$mod, levels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10", "10+"))
+  }
+  
+  x_label <- modifier_labels[[modifier]] %||% modifier
+  
   if (is.numeric(plot_df$mod)) {
-    plot_df <- plot_df %>% mutate(bin = cut(mod, bins, include.lowest = TRUE))
     p <- ggplot(plot_df, aes(mod, tau)) +
       geom_point(alpha = .2) +
       geom_smooth(method = "loess", se = FALSE, colour = "red") +
-      labs(title = sprintf("CATE vs %s (%s)", modifier, learner_name),
-           x = modifier, y = "Estimated CATE")
+      ylim(ylim_range[1], ylim_range[2]) +
+      labs(x = x_label, y = "Estimated CATE")
   } else {
     p <- ggplot(plot_df, aes(mod, tau, fill = mod)) +
       geom_boxplot(outlier.alpha = .15) +
+      ylim(ylim_range[1], ylim_range[2]) +
       guides(fill = "none") +
-      labs(title = sprintf("CATE by %s (%s)", modifier, learner_name),
-           x = modifier, y = "Estimated CATE")
+      labs(x = x_label, y = "Estimated CATE")
   }
   print(p); invisible(p)
 }
