@@ -1,76 +1,60 @@
-# Causal-Inference-Project
+# 50 Shades of Zero – *the non-causal effect of IAC* 🎯
+This repo contains our applied causal inference final project.
 
-This repository contains code and analyses for a university project on **Causal Inference**, primarily using **R** and **R Markdown**.  
-The goal is to explore, estimate, and interpret causal effects using modern statistical and machine learning methods.
+> **Causal question**  
+> Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
 
-## 📊 Dataset Overview
+Key steps  
+* preprocess the **MIMIC-II** cohort (1 776 adults, ~45 % treated)  
+* estimate the **ATE** with:  
+  * IPTW using PS weighted difference in means & PS weighted outcome modeling  
+  * Standardisation 
+* study **CATE** with metalearners:
+  * S-Learner using RF & XGBoost base learners
+  * T-Learner using RF & XGBoost base learners 
 
-### Data Source
-This project uses data from the **Multiparameter Intelligent Monitoring in Intensive Care II (MIMIC-II)** database, containing detailed clinical data from over 24,000 patients admitted to Beth Israel Deaconess Medical Center ICUs between 2001 and 2008.
 
-### Study Population
-From the full MIMIC-II database, we analyze **1,776 patients** who meet specific criteria:
-- Adult patients requiring mechanical ventilation within 24 hours of ICU admission
-- Mechanical ventilation lasting at least 24 hours  
-- Hemodynamically stable (no vasopressor support needed)
-- No sepsis diagnosis
+---
 
-### Treatment Variable
-**Indwelling Arterial Catheter (IAC) placement** - defined as insertion of an invasive arterial catheter after initiation of mechanical ventilation. In our cohort, 44.6% (792 patients) received an IAC.
-
-### Key Variables
-The dataset includes:
-- Patient demographics (age, gender, BMI)
-- Clinical scores (SOFA, SAPS I)
-- Comorbidities (CHF, COPD, stroke, etc.)
-- Laboratory values (blood gases, chemistry panel)
-- Outcomes (28-day mortality, ICU/hospital length of stay)
-- Treatment indicator (aline_flg)
-
-## 📁 Project Structure
-
+## 📂 Folder tree
 ```
-Causal-Inference-Project/
-├── data/ # Raw data files
-│ ├── data_dictionary.txt # Description of dataset variables
-│ └── full_cohort_data.csv # Main cohort dataset for analysis
-├── sandbox/ # Experimental notebooks and scratch work
-│ └── base_eda_matan.Rmd # Initial exploratory data analysis
-├── requirements.R # R packages required for the project
-├── .gitignore # Ignore rules for Git version control
-├── README.md # Project overview and structure
+Causal-Inference-Project
+├── data
+│   ├── full_cohort_data.csv
+│   └── data_dictionary.txt
+├── utils
+│   ├── data_pipelines_utils.R
+│   ├── plot_utils.R
+│   ├── ate_utils_iptw.R
+│   ├── ate_utils_standardization.R
+│   └── cate_utils.R
+├── ATE_IPTW_modeling.Rmd
+├── ATE_standardization_modeling.Rmd
+├── CATE_modeling_S_learner.Rmd
+├── CATE_modeling_T_learner.Rmd
+├── basic_eda.Rmd
+├── requirements.R
+└── README.md
 ```
 
-## 🛠 Technologies
+---
 
-- R (version 4.2 or above)  
-- RStudio  
-- R Markdown  
-- Git & GitHub  
+## 🚀 How to run
+1. **Clone**
+   ```bash
+   git clone https://github.com/<your-org>/Causal-Inference-Project.git
+   cd Causal-Inference-Project
+   ```
 
-## 📦 Required R Packages
+2. **Install packages**  
+   ```r
+   # in R / RStudio
+   source("requirements.R")   # installs all dependencies required for the project
+   ```
 
-To install all required packages, run in your R console:
+3. **Execute notebooks** – Open & Run the notebooks in the following order: 
+   * `ATE_IPTW_modeling.Rmd` – IPTW pipeline for ATE estimation
+   * `ATE_standardization_modeling.Rmd` – g-formula pipeline for ATE estimation  
+   * `CATE_modeling_S_learner.Rmd` & `CATE_modeling_T_learner.Rmd` – Metalearners pipelines for CATE estimation
 
-```r
-source("requirements.R")
-```
-
-This script installs:
-- tidyverse
-- skimr
-- tableone
-- GGally
-- naniar
-- ggridges
-- ggcorrplot
-- factoextra
-- vcd
-- glmnet
-- dplyr
-- knitr
-- tibble
-
-## 📌 Notes
-- Keep large or sensitive data outside Git (`data/` is tracked only for small public files)
-- Use the `sandbox/` folder for temporary or in-progress analyses
+All notebooks auto-source helper functions from `utils/`, read the cohort from `data/`.
