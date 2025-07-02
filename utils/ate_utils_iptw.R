@@ -18,11 +18,6 @@ naive_ate <- function(df, outcome_col, treatment_col) {
        ATE          = ate)
 }
 
-
-# function to accept a df, confounders, treatment, boolean value for lasso regularization.
-# Return logistic regression model with lasso regularization if boolean is true, otherwise return a model without lasso regularization.
-# If lasso is true then use CV to find the best lambda.
-
 model_ps_score <- function(df, confounders, treatment, lasso = FALSE) {
   fmla <- as.formula(paste(treatment, "~", paste(confounders, collapse = " + ")))
   
@@ -241,9 +236,7 @@ iptw_reg_ate <- function(df, outcome_col, treatment_col,
   s_ame <- summary(ame_obj)                # one-row data.frame
   rd <- s_ame$AME[1]                       # point estimate
   se <- s_ame$SE [1]                       # robust SE
-  ci <- rd + c(-1, 1) * qnorm(.975) * se   # 95 % Wald CI
+  ci <- rd + c(-1, 1) * qnorm(.975) * se   # 95% Wald CI
   
   list(ATE = rd, SE = se, CI = ci, model = fit)
 }
-
-
