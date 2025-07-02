@@ -42,7 +42,7 @@ Causal-Inference-Project
 ## 🚀 How to run
 1. **Clone**
    ```bash
-   git clone https://github.com/<your-org>/Causal-Inference-Project.git
+   git clone https://github.com/matfain/Causal-Inference-Project.git
    cd Causal-Inference-Project
    ```
 
