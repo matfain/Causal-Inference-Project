@@ -10,8 +10,8 @@
 > **Causal question**  
 > Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
 
-Key steps  
-* preprocess the **MIMIC-II** cohort dataset 
+**Project Workflow**  
+* preprocessing of the **MIMIC-II** cohort dataset 
 * estimate the **ATE** with:  
   * IPTW using PS weighted difference in means & PS weighted outcome modeling  
   * Standardisation 
