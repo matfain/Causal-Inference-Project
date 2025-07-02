@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 source("utils/data_pipelines_utils.R")
 source("utils/plot_utils.R")
-source("utils/causal_utils.R")
+source("utils/ate_utils_iptw.R")
 full_df <- read.csv("data/full_cohort_data.csv")
 ```
 
