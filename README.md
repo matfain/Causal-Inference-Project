@@ -1,10 +1,11 @@
 # 50 Shades of Zero – *the non-causal effect of IAC* 🎯
-This repo contains our applied causal inference final project.
 
 <!-- cool cover art -->
 <div align="center">
-  <img src="cover_image.png" width="600" alt="50 Shades of Zero">
+  <img src="cover_image.png" width="450" alt="50 Shades of Zero">
 </div>
+
+&nbsp;
 
 > **Causal question**  
 > Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
