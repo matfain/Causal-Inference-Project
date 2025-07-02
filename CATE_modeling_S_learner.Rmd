@@ -61,8 +61,18 @@ df_median <- final_base_df %>%
 ```
 
 ```{r}
-effect_modifiers <- c("age","gender_num","weight_first",
-                      "service_unit","liver_flg")
+effect_modifiers <- c("sapsi_first","sofa_first_cat","age","gender_num","chf_flg","renal_flg","copd_flg","service_unit")
+
+modifier_labels <- list(
+  "sapsi_first" = "SAPS-I Score",
+  "sofa_first_cat" = "SOFA Score Category", 
+  "age" = "Age (years)",
+  "gender_num" = "Gender",
+  "chf_flg" = "Congestive Heart Failure",
+  "renal_flg" = "Renal Disease",
+  "copd_flg" = "Chronic Obstructive Pulmonary Disease",
+  "service_unit" = "Service Unit Type"
+)
 
 for (mod in effect_modifiers) {
   x <- df_median[[mod]]
@@ -92,6 +102,42 @@ for (bl in base_learners) {
 ```
 
 ```{r}
+# Convert binary variables to factors
+for (mod in effect_modifiers) {
+  x <- df_median[[mod]]
+  if (is.numeric(x) && setequal(na.omit(unique(x)), c(0, 1))) {
+    df_median[[mod]] <- factor(x, levels = c(0, 1))
+  }
+}
+
+# Updated plot function
+plot_cate_vs_modifier <- function(df, cate_vec, modifier, learner_name) {
+  
+  plot_df <- df %>% mutate(tau = cate_vec, mod = .data[[modifier]])
+  
+  if (modifier == "sofa_first_cat") {
+    plot_df$mod <- factor(plot_df$mod, levels = c("0-2.5", "2.5-5", "5-7.5", "7.5-10", "10+"))
+  }
+  
+  x_label <- modifier_labels[[modifier]] %||% modifier
+  
+  if (is.numeric(plot_df$mod)) {
+    p <- ggplot(plot_df, aes(mod, tau)) +
+      geom_point(alpha = .2) +
+      geom_smooth(method = "loess", se = FALSE, colour = "red") +
+      ylim(-0.2, 0.2) +
+      labs(x = x_label, y = "Estimated CATE")
+  } else {
+    p <- ggplot(plot_df, aes(mod, tau, fill = mod)) +
+      geom_boxplot(outlier.alpha = .15) +
+      ylim(-0.2, 0.2) +
+      guides(fill = "none") +
+      labs(x = x_label, y = "Estimated CATE")
+  }
+  print(p); invisible(p)
+}
+
+# Generate plots
 for (lbl in names(s_results)) {
   tau_vec <- s_results[[lbl]]$tau
   for (mod in effect_modifiers) {
