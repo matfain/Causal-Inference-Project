@@ -2,7 +2,7 @@
 
 <!-- cool cover art -->
 <div align="center">
-  <img src="cover_image.png" width="600" alt="50 Shades of Zero">
+  <img src="cover_image.png" width="450" alt="50 Shades of Zero">
 </div>
 
 &nbsp;
@@ -11,13 +11,13 @@
 > Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
 
 **Project Workflow**  
-* preprocessing of the **MIMIC-II** cohort dataset 
-* estimate the **ATE** with:  
-  * IPTW using PS weighted difference in means & PS weighted outcome modeling  
-  * Standardisation 
-* study **CATE** with metalearners:
-  * S-Learner using RF & XGBoost base learners
-  * T-Learner using RF & XGBoost base learners 
+* 🧹 preprocessing of the **MIMIC-II** cohort dataset 
+* 🎯 estimate the **ATE** with:  
+  * ⚖️ IPTW using PS weighted difference in means & PS weighted outcome modeling  
+  * 📏 Standardisation 
+* 🧩 study **CATE** with metalearners:
+  * 🌲 + 🦾 S-Learner using RF & XGBoost base learners
+  * 🌲 + 🦾 T-Learner using RF & XGBoost base learners 
 
 
 ---
