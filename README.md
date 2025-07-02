@@ -2,7 +2,7 @@
 
 <!-- cool cover art -->
 <div align="center">
-  <img src="cover_image.png" width="450" alt="50 Shades of Zero">
+  <img src="cover_image.png" width="600" alt="50 Shades of Zero">
 </div>
 
 &nbsp;
