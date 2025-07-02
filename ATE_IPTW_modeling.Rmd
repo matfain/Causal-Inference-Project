@@ -539,8 +539,7 @@ for (nm in names(ate_results)) {
            outcome_col   = outcome,
            treatment_col = treatment,
            weights       = w_list[[nm]],
-           covars        = if (use_covars) final_confounders else NULL,
-           family        = binomial
+           covars        = if (use_covars) final_confounders else NULL
          )
 
   cat("\nModel:", nm, "\n")

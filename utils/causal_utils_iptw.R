@@ -1,3 +1,5 @@
+library(margins)
+
 # -------------------------------------------------------------------
 #  Naïve / Unadjusted ATE  (difference-in-means)
 # -------------------------------------------------------------------
@@ -218,34 +220,30 @@ bootstrap_iptw_ate <- function(df,
 #    • If covars = NULL     →  Y ~ A             (pure IPTW)
 #    • If covars = c(...)   →  Y ~ A + covars    (augmented IPTW)
 # -------------------------------------------------------------------
-iptw_reg_ate <- function(df,
-                         outcome_col,
-                         treatment_col,
-                         weights,
-                         covars  = NULL,
-                         family  = binomial) {
+iptw_reg_ate <- function(df, outcome_col, treatment_col,
+                         weights, covars = NULL) {
   
   df_w <- df %>% mutate(.w = weights)
   
-  rhs  <- if (is.null(covars)) {
-    treatment_col
-  } else {
-    paste(c(treatment_col, covars), collapse = " + ")
-  }
+  rhs  <- if (is.null(covars)) treatment_col
+  else                 paste(c(treatment_col, covars), collapse = " + ")
   fmla <- as.formula(paste(outcome_col, "~", rhs))
   
-  fit  <- glm(fmla,
-              data    = df_w,
-              family  = family,
-              weights = .w)
+  fit  <- glm(fmla, data = df_w,
+              family = binomial, weights = .w)
   
-  # extract treatment effect
-  trt_coef <- coef(summary(fit))[treatment_col, ]
-  tau <- trt_coef["Estimate"]
-  se  <- trt_coef["Std. Error"]
-  ci  <- tau + c(-1, 1) * qnorm(.975) * se
+  ## Average marginal effect of treatment on the *response* scale
+  ame_obj <- margins::margins(
+    fit,
+    variables = treatment_col,
+    type      = "response")      # E[Y|A,X] on prob scale
   
-  list(ATE = tau, SE = se, CI = ci, model = fit)
+  s_ame <- summary(ame_obj)                # one-row data.frame
+  rd <- s_ame$AME[1]                       # point estimate
+  se <- s_ame$SE [1]                       # robust SE
+  ci <- rd + c(-1, 1) * qnorm(.975) * se   # 95 % Wald CI
+  
+  list(ATE = rd, SE = se, CI = ci, model = fit)
 }
 
 
