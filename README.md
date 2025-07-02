@@ -46,21 +46,21 @@ Causal-Inference-Project
 ---
 
 ## 🚀 How to run
-1. **Clone**
+1. **Clone** 📥
    ```bash
    git clone https://github.com/matfain/Causal-Inference-Project.git
    cd Causal-Inference-Project
    ```
 
-2. **Install packages**  
+2. **Install packages** 📦  
    ```r
    # in R / RStudio
    source("requirements.R")   # installs all dependencies required for the project
    ```
 
-3. **Execute notebooks** – Open & Run the notebooks in the following order: 
-   * `ATE_IPTW_modeling.Rmd` – IPTW pipeline for ATE estimation
-   * `ATE_standardization_modeling.Rmd` – g-formula pipeline for ATE estimation  
-   * `CATE_modeling_S_learner.Rmd` & `CATE_modeling_T_learner.Rmd` – Metalearners pipelines for CATE estimation
+3. **Execute notebooks** ▶️ 
+   * 📑 `ATE_IPTW_modeling.Rmd` – IPTW pipeline for ATE estimation
+   * 📑 `ATE_standardization_modeling.Rmd` – g-formula pipeline for ATE estimation  
+   * 📑 `CATE_modeling_S_learner.Rmd` & `CATE_modeling_T_learner.Rmd` – Metalearners pipelines for CATE estimation
 
-All notebooks auto-source helper functions from `utils/`, read the cohort from `data/`.
+💡 All notebooks auto-source helper functions from `utils/`, read the cohort from `data/`.
