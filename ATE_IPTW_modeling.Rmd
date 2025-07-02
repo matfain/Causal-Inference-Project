@@ -94,7 +94,6 @@ positivity_check_histograms(clean_df, treatment, clean_confounders)
 ```
 
 Suspected positivity issues:\
-po2_first - we deny this\
 sofa_first - divide to the intervals: [0, 2,5) [2.5, 5) [5, 7.5) [7.5, 10} [10, \\inf)
 
 ## Dividing sofa_first
@@ -129,6 +128,30 @@ df_mean_imputed <- impute_df(final_base_df, method = "mean")
 
 # median imputation
 df_median_imputed <- impute_df(final_base_df, method = "median")
+```
+
+## ATE Naive Estimation
+
+```{r}
+naive_no_na          <- naive_ate(df_no_na,          outcome, treatment)
+naive_mean_imputed   <- naive_ate(df_mean_imputed,   outcome, treatment)
+naive_median_imputed <- naive_ate(df_median_imputed, outcome, treatment)
+
+naive_results <- list(
+  no_na          = naive_no_na,
+  mean_imputed   = naive_mean_imputed,
+  median_imputed = naive_median_imputed
+)
+
+cat("=== Naïve (unadjusted) ATE estimates ===\n")
+for (nm in names(naive_results)) {
+  res <- naive_results[[nm]]
+  cat(sprintf(
+    "Dataset: %-15s  µ1 = %.3f   µ0 = %.3f   ATE = %.3f\n",
+    nm, res$mean_treated, res$mean_control, res$ATE
+  ))
+}
+
 ```
 
 ## Estimate PS for 3 datasets
