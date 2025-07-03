@@ -133,3 +133,52 @@ for (lbl in names(s_results)) {
 }
 
 ```
+
+
+## NEW: Additional CATE Analyses
+
+### 1. Compare CATE Distributions Across Methods
+
+```{r}
+# Load T-learner results for comparison (if available)
+# For demonstration, we'll create dummy T-learner results
+t_results <- list(
+  rf = list(tau = rnorm(nrow(df_median), mean = -0.02, sd = 0.05)),
+  xgb = list(tau = rnorm(nrow(df_median), mean = -0.015, sd = 0.04))
+)
+
+# Compare distributions
+compare_cate_distributions(s_results, t_results)
+```
+
+### 2. Multi-Modifier Interaction Analysis
+
+```{r}
+# Generate all possible pairs of modifiers
+all_modifier_pairs <- combn(effect_modifiers, 2, simplify = FALSE)
+
+cat("Analyzing", length(all_modifier_pairs), "modifier pairs...\n")
+
+for (lbl in names(s_results)) {
+  tau_vec <- s_results[[lbl]]$tau
+  for (pair in all_modifier_pairs) {
+    plot_cate_by_modifier_pairs(df_median, tau_vec, 
+                               mod1 = pair[1], mod2 = pair[2], 
+                               learner_name = lbl,
+                               modifier_labels = modifier_labels)
+  }
+}
+```
+
+### 3. Extreme CATE Analysis
+
+```{r}
+# Identify and analyze extreme responders
+for (lbl in names(s_results)) {
+  tau_vec <- s_results[[lbl]]$tau
+  extreme_analysis <- analyze_cate_extremes(df_median, tau_vec, 
+                                          learner_name = lbl, 
+                                          n_extreme = 50,
+                                          modifier_labels = modifier_labels)
+}
+```

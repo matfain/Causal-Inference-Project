@@ -210,3 +210,201 @@ plot_cate_grid <- function(grid_df, modifier, learner_name) {
   }
   print(p); invisible(p)
 }
+
+
+# ---------------------------------------------------------------------------
+# NEW: Additional CATE Analysis Functions
+# ---------------------------------------------------------------------------
+
+# 1. Compare CATE distributions across all learners
+compare_cate_distributions <- function(s_results, t_results) {
+  # Combine all CATE estimates
+  all_cates <- bind_rows(
+    tibble(tau = s_results[["S-rf"]]$tau, learner = "S-learner (RF)"),
+    tibble(tau = s_results[["S-xgb"]]$tau, learner = "S-learner (XGB)"),
+    tibble(tau = t_results[["rf"]]$tau, learner = "T-learner (RF)"),
+    tibble(tau = t_results[["xgb"]]$tau, learner = "T-learner (XGB)")
+  )
+  
+  # Density plot
+  p <- ggplot(all_cates, aes(x = tau, fill = learner)) +
+    geom_density(alpha = 0.4) +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    labs(title = "CATE Distribution Across Metalearners",
+         x = "Estimated CATE", y = "Density") +
+    theme_minimal() +
+    xlim(-0.3, 0.3)
+  
+  print(p)
+  invisible(p)
+}
+
+# 2. Plot CATE by pairs of modifiers
+plot_cate_by_modifier_pairs <- function(df, tau_vec, mod1, mod2, learner_name, modifier_labels = list()) {
+  df_plot <- df %>%
+    mutate(tau = tau_vec)
+  
+  # Get labels
+  lab1 <- modifier_labels[[mod1]] %||% mod1
+  lab2 <- modifier_labels[[mod2]] %||% mod2
+  
+  # Check variable types
+  is_num1 <- is.numeric(df_plot[[mod1]])
+  is_num2 <- is.numeric(df_plot[[mod2]])
+  
+  # For continuous × categorical
+  if (is_num1 && !is_num2) {
+    # Recode factor levels for legend
+    if (mod2 %in% names(modifier_labels)) {
+      df_plot[[mod2]] <- factor(df_plot[[mod2]], 
+                                levels = unique(df_plot[[mod2]]),
+                                labels = paste(lab2, "=", unique(df_plot[[mod2]])))
+    }
+    
+    p <- ggplot(df_plot, aes_string(x = mod1, y = "tau", color = mod2)) +
+      geom_point(alpha = 0.3) +
+      geom_smooth(method = "loess", se = FALSE) +
+      labs(title = paste("CATE by", lab1, "and", lab2, "-", learner_name),
+           x = lab1,
+           y = "Estimated CATE",
+           color = lab2) +
+      theme_minimal()
+  }
+  # For categorical × continuous  
+  else if (!is_num1 && is_num2) {
+    # Recode factor levels for legend
+    if (mod1 %in% names(modifier_labels)) {
+      df_plot[[mod1]] <- factor(df_plot[[mod1]], 
+                                levels = unique(df_plot[[mod1]]),
+                                labels = paste(lab1, "=", unique(df_plot[[mod1]])))
+    }
+    
+    p <- ggplot(df_plot, aes_string(x = mod2, y = "tau", color = mod1)) +
+      geom_point(alpha = 0.3) +
+      geom_smooth(method = "loess", se = FALSE) +
+      labs(title = paste("CATE by", lab2, "and", lab1, "-", learner_name),
+           x = lab2,
+           y = "Estimated CATE",
+           color = lab1) +
+      theme_minimal()
+  }
+  # For categorical × categorical
+  else if (!is_num1 && !is_num2) {
+    # Create labels for x-axis if service_unit or sofa_first_cat
+    if (mod1 == "service_unit") {
+      df_plot[[mod1]] <- factor(df_plot[[mod1]], 
+                                levels = c("MICU", "SICU"),
+                                labels = c("Medical ICU", "Surgical ICU"))
+    }
+    if (mod2 %in% names(modifier_labels) && mod2 != "service_unit" && mod2 != "sofa_first_cat") {
+      df_plot[[mod2]] <- factor(df_plot[[mod2]], 
+                                levels = unique(df_plot[[mod2]]),
+                                labels = paste(lab2, "=", unique(df_plot[[mod2]])))
+    }
+    
+    p <- df_plot %>%
+      group_by(!!sym(mod1), !!sym(mod2)) %>%
+      summarize(mean_tau = mean(tau), se_tau = sd(tau)/sqrt(n()), .groups = 'drop') %>%
+      ggplot(aes_string(x = mod1, y = "mean_tau", fill = mod2)) +
+      geom_col(position = "dodge") +
+      geom_errorbar(aes(ymin = mean_tau - se_tau, ymax = mean_tau + se_tau),
+                    position = position_dodge(0.9), width = 0.2) +
+      labs(title = paste("Mean CATE by", lab1, "and", lab2, "-", learner_name),
+           x = lab1,
+           y = "Mean CATE",
+           fill = lab2) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+  # For continuous × continuous
+  else {
+    # Create 2D heatmap
+    df_binned <- df_plot %>%
+      mutate(
+        mod1_bin = cut(!!sym(mod1), breaks = 10),
+        mod2_bin = cut(!!sym(mod2), breaks = 10)
+      ) %>%
+      group_by(mod1_bin, mod2_bin) %>%
+      summarize(mean_cate = mean(tau, na.rm = TRUE), .groups = 'drop')
+    
+    p <- ggplot(df_binned, aes(x = mod1_bin, y = mod2_bin, fill = mean_cate)) +
+      geom_tile() +
+      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+      labs(title = paste("CATE Heatmap:", lab1, "vs", lab2, "-", learner_name),
+           x = lab1,
+           y = lab2,
+           fill = "Mean CATE") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+  
+  print(p)
+  invisible(p)
+}
+
+# 3. Analyze extreme CATE patients
+analyze_cate_extremes <- function(df, tau_vec, learner_name, n_extreme = 50, modifier_labels = list()) {
+  df_cate <- df %>%
+    mutate(
+      tau = tau_vec,
+      patient_id = row_number(),
+      tau_percentile = percent_rank(tau)
+    )
+  
+  # Get top and bottom responders
+  top_responders <- df_cate %>%
+    arrange(desc(tau)) %>%
+    slice_head(n = n_extreme) %>%
+    mutate(group = "Top beneficiaries")
+  
+  bottom_responders <- df_cate %>%
+    arrange(tau) %>%
+    slice_head(n = n_extreme) %>%
+    mutate(group = "Potential harm")
+  
+  extreme_patients <- bind_rows(top_responders, bottom_responders)
+  
+  # Compare key characteristics
+  vars_to_compare <- c("age", "sapsi_first", "sofa_first_cat", "service_unit")
+  
+  plots <- list()
+  for (var in vars_to_compare) {
+    # Get label
+    var_label <- modifier_labels[[var]] %||% var
+    
+    if (is.numeric(extreme_patients[[var]])) {
+      p <- ggplot(extreme_patients, aes_string(x = "group", y = var, fill = "group")) +
+        geom_boxplot() +
+        labs(title = paste(var_label, "by CATE group -", learner_name),
+             y = var_label) +
+        theme_minimal()
+    } else {
+      p <- extreme_patients %>%
+        count(group, !!sym(var)) %>%
+        ggplot(aes_string(x = var, y = "n", fill = "group")) +
+        geom_col(position = "dodge") +
+        labs(title = paste(var_label, "distribution by CATE group -", learner_name),
+             x = var_label,
+             y = "Count") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    }
+    plots[[var]] <- p
+    print(p)
+  }
+  
+  # Summary statistics table
+  summary_stats <- extreme_patients %>%
+    group_by(group) %>%
+    summarize(
+      mean_tau = mean(tau),
+      mean_age = mean(age),
+      mean_sapsi = mean(sapsi_first),
+      prop_micu = mean(service_unit == "MICU"),
+      prop_chf = mean(chf_flg == 1),
+      .groups = 'drop'
+    )
+  
+  print(kable(summary_stats, caption = paste("Extreme CATE Groups -", learner_name)))
+  
+  invisible(list(plots = plots, extreme_patients = extreme_patients, summary = summary_stats))
+}

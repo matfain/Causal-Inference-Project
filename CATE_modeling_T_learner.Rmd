@@ -121,7 +121,7 @@ for (learner in names(results_list)) {
  for (mod in effect_modifiers) {
    plot_cate_vs_modifier(df_median, tau_vec, modifier = mod,
                          learner_name = learner, modifier_labels = modifier_labels,
-                         ylim_range = c(-0.5, 0.5))
+                         ylim_range = c(-1, 1))
  }
 }
 
@@ -151,5 +151,55 @@ for (learner in names(results_list)) {
 
     plot_cate_grid(grid_df, mod, learner)
   }
+}
+```
+
+
+# NEW: Additional CATE Analyses
+
+### 1. Compare CATE Distributions Across Methods
+
+```{r}
+# Load S-learner results for comparison
+# For full analysis, run S_learner.Rmd first and save results
+# Here we create dummy S-learner results for demonstration
+s_results <- list(
+  "S-rf" = list(tau = rnorm(nrow(df_median), mean = -0.02, sd = 0.05)),
+  "S-xgb" = list(tau = rnorm(nrow(df_median), mean = -0.015, sd = 0.04))
+)
+
+# Compare distributions
+compare_cate_distributions(s_results, results_list)
+```
+
+### 2. Multi-Modifier Interaction Analysis
+
+```{r}
+# Generate all possible pairs of modifiers
+all_modifier_pairs <- combn(effect_modifiers, 2, simplify = FALSE)
+
+cat("Analyzing", length(all_modifier_pairs), "modifier pairs...\n")
+
+for (learner in names(results_list)) {
+  tau_vec <- results_list[[learner]]$tau
+  for (pair in all_modifier_pairs) {
+    plot_cate_by_modifier_pairs(df_median, tau_vec, 
+                               mod1 = pair[1], mod2 = pair[2], 
+                               learner_name = paste("T-", learner),
+                               modifier_labels = modifier_labels)
+  }
+}
+```
+
+### 3. Extreme CATE Analysis
+
+```{r}
+# Identify and analyze extreme responders
+for (learner in names(results_list)) {
+  tau_vec <- results_list[[learner]]$tau
+  extreme_analysis <- analyze_cate_extremes(df_median, tau_vec, 
+                                          learner_name = paste("T-", learner), 
+                                          n_extreme = 50,
+                                          modifier_labels = modifier_labels)
 }
 ```
