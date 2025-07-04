@@ -212,6 +212,9 @@ plot_cate_grid <- function(grid_df, modifier, learner_name) {
 }
 
 
+
+# [Previous functions remain the same...]
+
 # ---------------------------------------------------------------------------
 # NEW: Additional CATE Analysis Functions
 # ---------------------------------------------------------------------------
@@ -226,18 +229,28 @@ compare_cate_distributions <- function(s_results, t_results) {
     tibble(tau = t_results[["xgb"]]$tau, learner = "T-learner (XGB)")
   )
   
+  # Remove non-finite values
+  all_cates <- all_cates %>% filter(is.finite(tau))
+  
+  # Calculate reasonable x-axis limits (trim extreme outliers)
+  tau_range <- quantile(all_cates$tau, c(0.01, 0.99), na.rm = TRUE)
+  x_limits <- c(tau_range[1] - 0.05, tau_range[2] + 0.05)
+  
   # Density plot
   p <- ggplot(all_cates, aes(x = tau, fill = learner)) +
-    geom_density(alpha = 0.4) +
-    geom_vline(xintercept = 0, linetype = "dashed") +
-    labs(title = "CATE Distribution Across Metalearners",
-         x = "Estimated CATE", y = "Density") +
-    theme_minimal() +
-    xlim(-0.3, 0.3)
+    geom_density(alpha = 0.4, adjust = 1.5) +  # Smoother density
+    geom_vline(xintercept = 0, linetype = "dashed", size = 1) +
+    labs(
+         x = "Estimated CATE", 
+         y = "Density") +
+    theme_minimal(base_size = 12) +
+    xlim(x_limits) +
+    theme(legend.position = "bottom")
   
   print(p)
   invisible(p)
 }
+
 
 # 2. Plot CATE by pairs of modifiers
 plot_cate_by_modifier_pairs <- function(df, tau_vec, mod1, mod2, learner_name, modifier_labels = list()) {
@@ -302,19 +315,29 @@ plot_cate_by_modifier_pairs <- function(df, tau_vec, mod1, mod2, learner_name, m
                                 labels = paste(lab2, "=", unique(df_plot[[mod2]])))
     }
     
-    p <- df_plot %>%
+    # Create summary with sample sizes
+    summary_df <- df_plot %>%
       group_by(!!sym(mod1), !!sym(mod2)) %>%
-      summarize(mean_tau = mean(tau), se_tau = sd(tau)/sqrt(n()), .groups = 'drop') %>%
-      ggplot(aes_string(x = mod1, y = "mean_tau", fill = mod2)) +
+      summarize(mean_tau = mean(tau), 
+                se_tau = sd(tau)/sqrt(n()), 
+                n = n(),
+                .groups = 'drop')
+    
+    p <- ggplot(summary_df, aes_string(x = mod1, y = "mean_tau", fill = mod2)) +
       geom_col(position = "dodge") +
       geom_errorbar(aes(ymin = mean_tau - se_tau, ymax = mean_tau + se_tau),
                     position = position_dodge(0.9), width = 0.2) +
+      geom_text(aes(label = paste0("n=", n)), 
+                position = position_dodge(0.9), 
+                vjust = -0.5,
+                size = 3) +
       labs(title = paste("Mean CATE by", lab1, "and", lab2, "-", learner_name),
            x = lab1,
            y = "Mean CATE",
            fill = lab2) +
       theme_minimal() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_y_continuous(expand = expansion(mult = c(0.1, 0.15)))
   }
   # For continuous × continuous
   else {
