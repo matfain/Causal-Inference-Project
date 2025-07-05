@@ -145,7 +145,8 @@ bootstrap_iptw_ate <- function(df,
                                stabilized = TRUE,
                                clip = TRUE,
                                clip_quantiles = c(0.05, 0.95),
-                               plot_title = "Bootstrap Distribution of IPTW‐ATE") {
+                               plot_title = "Bootstrap Distribution of IPTW‐ATE",
+                               x_lim = NULL) {
   # parallel setup
   library(doParallel)
   library(foreach)
@@ -196,6 +197,7 @@ bootstrap_iptw_ate <- function(df,
   p <- ggplot(df_plot, aes(x = ATE)) +
     geom_histogram(bins = 30, color = "black", fill = "plum") +
     geom_vline(xintercept = ci, linetype = "dashed", size = 1) +
+    (if (!is.null(x_lim)) coord_cartesian(xlim = x_lim) else NULL) +
     labs(
       title = plot_title,
       x     = "ATE",

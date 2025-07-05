@@ -49,7 +49,8 @@ plot_ps_hist <- function(df,
                          ps_vec,
                          treatment_col,
                          bins = 30,
-                         plot_title = "Propensity Score Distribution by Treatment") {
+                         plot_title = "Propensity Score Distribution by Treatment",
+                         x_lim = NULL) {
   stopifnot(length(ps_vec) == nrow(df))
   
   # 1) add PS column
@@ -72,6 +73,7 @@ plot_ps_hist <- function(df,
       linewidth = 0.2,
       na.rm     = TRUE
     ) +
+    (if (!is.null(x_lim)) coord_cartesian(xlim = x_lim) else NULL) +
     labs(
       title = plot_title,
       x     = "Propensity Score",
@@ -91,7 +93,8 @@ plot_iptw_weights <- function(df,
                               weights,
                               treatment_col,
                               bins       = 30,
-                              plot_title = "IPTW Weights by Treatment") {
+                              plot_title = "IPTW Weights by Treatment",
+                              x_lim = NULL) {
   stopifnot(length(weights) == nrow(df))
   
   # 1) add weight column
@@ -113,6 +116,7 @@ plot_iptw_weights <- function(df,
       linewidth = 0.2,
       na.rm     = TRUE
     ) +
+    (if (!is.null(x_lim)) coord_cartesian(xlim = x_lim) else NULL) +
     labs(
       title = plot_title,
       x     = "IPTW Weight",

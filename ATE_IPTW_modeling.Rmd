@@ -192,18 +192,24 @@ ps_median_imputed_lasso   <- extract_ps(logreg_median_imputed_lasso,
 ```{r}
 # Plot propensity scores for each one of the 6 models
 
-# No lasso models
-plot_ps_hist(df_no_na, ps_no_na_no_lasso, treatment, plot_title="PS No NA | No Lasso")
-plot_ps_hist(df_mean_imputed, ps_mean_imputed_no_lasso, treatment, plot_title="PS Mean Imputation | No Lasso")
-plot_ps_hist(df_median_imputed, ps_median_imputed_no_lasso, treatment,
-             plot_title="PS Median Imputation | No Lasso")
+# Find common x axis scale
+ps_all <- c(ps_no_na_no_lasso, ps_mean_imputed_no_lasso, ps_median_imputed_no_lasso,
+            ps_no_na_lasso,    ps_mean_imputed_lasso,    ps_median_imputed_lasso)
+ps_lim <- range(ps_all, na.rm = TRUE)
 
-# With lasso models
-plot_ps_hist(df_no_na, ps_no_na_lasso, treatment, plot_title="PS No NA | Lasso")
-plot_ps_hist(df_mean_imputed, ps_mean_imputed_lasso, treatment, 
-             plot_title="PS Mean Imputation | Lasso")
+plot_ps_hist(df_no_na,        ps_no_na_no_lasso,        treatment,
+             plot_title = "PS No NA | No Lasso",        x_lim = ps_lim)
+plot_ps_hist(df_mean_imputed, ps_mean_imputed_no_lasso, treatment,
+             plot_title = "PS Mean | No Lasso",         x_lim = ps_lim)
+plot_ps_hist(df_median_imputed, ps_median_imputed_no_lasso, treatment,
+             plot_title = "PS Median | No Lasso",       x_lim = ps_lim)
+
+plot_ps_hist(df_no_na,        ps_no_na_lasso,           treatment,
+             plot_title = "PS No NA | Lasso",           x_lim = ps_lim)
+plot_ps_hist(df_mean_imputed, ps_mean_imputed_lasso,    treatment,
+             plot_title = "PS Mean | Lasso",            x_lim = ps_lim)
 plot_ps_hist(df_median_imputed, ps_median_imputed_lasso, treatment,
-             plot_title="PS Median Imputation | Lasso")
+             plot_title = "PS Median | Lasso",          x_lim = ps_lim)
 ```
 
 ## Estimating ATE on 6 models
@@ -370,55 +376,25 @@ w_median_imputed_lasso <- iptw_weights(
 ```
 
 ```{r}
-# plot iptw weights histograms for all 6 models based on clipped
+# ===== COMMON X-LIM FOR WEIGHT DISTRIBUTIONS ======================
+w_all <- c(w_no_na, w_mean_imputed, w_median_imputed,
+           w_no_na_lasso, w_mean_imputed_lasso, w_median_imputed_lasso)
+w_lim <- range(w_all, na.rm = TRUE)
 
-plot_iptw_weights(
-  df            = df_no_na,
-  weights       = w_no_na,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (No NA, Stabilized)"
-)
+plot_iptw_weights(df_no_na,        w_no_na,              treatment,
+                  plot_title = "Weights No NA",          x_lim = w_lim)
+plot_iptw_weights(df_mean_imputed, w_mean_imputed,       treatment,
+                  plot_title = "Weights Mean",           x_lim = w_lim)
+plot_iptw_weights(df_median_imputed, w_median_imputed,   treatment,
+                  plot_title = "Weights Median",         x_lim = w_lim)
 
-plot_iptw_weights(
-  df            = df_mean_imputed,
-  weights       = w_mean_imputed,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (Mean Imputation, Stabilized)"
-)
+plot_iptw_weights(df_no_na,        w_no_na_lasso,        treatment,
+                  plot_title = "Weights No NA | Lasso",  x_lim = w_lim)
+plot_iptw_weights(df_mean_imputed, w_mean_imputed_lasso, treatment,
+                  plot_title = "Weights Mean | Lasso",   x_lim = w_lim)
+plot_iptw_weights(df_median_imputed, w_median_imputed_lasso, treatment,
+                  plot_title = "Weights Median | Lasso", x_lim = w_lim)
 
-plot_iptw_weights(
-  df            = df_median_imputed,
-  weights       = w_median_imputed,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (Median Imputation, Stabilized)"
-)
-
-plot_iptw_weights(
-  df            = df_no_na,
-  weights       = w_no_na_lasso,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (No NA, Lasso, Stabilized)"
-)
-
-plot_iptw_weights(
-  df            = df_mean_imputed,
-  weights       = w_mean_imputed_lasso,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (Mean Imputation, Lasso, Stabilized)"
-)
-
-plot_iptw_weights(
-  df            = df_median_imputed,
-  weights       = w_median_imputed_lasso,
-  treatment_col = treatment,
-  bins          = 30,
-  plot_title    = "IPTW Weights (Median Imputation, Lasso, Stabilized)"
-)
 ```
 
 ```{r}
@@ -615,6 +591,34 @@ res6 <- bootstrap_iptw_ate(
   lasso         = TRUE,
   plot_title    = "Bootstrap IPTW-ATE (Median Imputation, Lasso)"
 )
+```
+
+Now we will replot the ATE distributions on a common X axis for easier comparison:
+
+```{r}
+# ===== BOOTSTRAP WITH SHARED X-AXIS =================================
+ate_all <- c(res1$ates, res2$ates, res3$ates,
+             res4$ates, res5$ates, res6$ates)
+ate_lim <- range(ate_all, na.rm = TRUE)
+
+# 3. re-plot each draw vector using the helper below
+plot_boot_hist <- function(ates, ci, title, x_lim) {
+  ggplot(data.frame(ATE = ates), aes(x = ATE)) +
+    geom_histogram(bins = 30, colour = "black", fill = "plum") +
+    geom_vline(xintercept = ci, linetype = "dashed", size = 1) +
+    coord_cartesian(xlim = x_lim) +
+    labs(title = title, x = "ATE", y = "Frequency") +
+    theme_minimal(base_size = 14) +
+    theme(plot.title = element_text(face = "bold", hjust = .5))
+}
+
+plot_boot_hist(res1$ates, res1$ci, "Bootstrap IPTW-ATE (No NA, No Lasso)", ate_lim)
+plot_boot_hist(res2$ates, res2$ci, "Bootstrap IPTW-ATE (Mean, No Lasso)",  ate_lim)
+plot_boot_hist(res3$ates, res3$ci, "Bootstrap IPTW-ATE (Median, No Lasso)",ate_lim)
+plot_boot_hist(res4$ates, res4$ci, "Bootstrap IPTW-ATE (No NA, Lasso)",    ate_lim)
+plot_boot_hist(res5$ates, res5$ci, "Bootstrap IPTW-ATE (Mean, Lasso)",     ate_lim)
+plot_boot_hist(res6$ates, res6$ci, "Bootstrap IPTW-ATE (Median, Lasso)",   ate_lim)
+
 ```
 
 ## Analyzing Extreme PS Values
