@@ -9,6 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### File Description
+
+This file performs positivity analysis and ATE estimation using naive estimation & IPTW.\
+Estimations are reported with point estimates & percentiles Bootstrap CIs.
+
 ```{r, warning=FALSE}
 # libraries, internal imports and constants
 library(tidyverse)

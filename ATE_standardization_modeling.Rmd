@@ -9,6 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### File Description
+
+This file performs ATE estimation using Standardization methods.\
+Estimations are reported with point estimates & percentiles Bootstrap CIs.
+
 ```{r, warning=FALSE}
 ## libraries + internal utils
 library(tidyverse)    

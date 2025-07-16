@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### File Description
+
+This file performs CATE estimation using S-learners with Random Forest & XGBoost.
+
 ```{r}
 library(tidyverse)
 library(ranger)
@@ -134,8 +138,7 @@ for (lbl in names(s_results)) {
 
 ```
 
-
-## NEW: Additional CATE Analyses
+## Additional CATE Analyses
 
 ### 1. Compare CATE Distributions Across Methods
 

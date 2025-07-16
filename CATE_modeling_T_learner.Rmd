@@ -5,6 +5,10 @@ date: "2025-07-01"
 output: html_document
 ---
 
+### File Description
+
+This file performs CATE estimation using T-learners with Random Forest & XGBoost.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -153,7 +157,6 @@ for (learner in names(results_list)) {
   }
 }
 ```
-
 
 # NEW: Additional CATE Analyses
 
