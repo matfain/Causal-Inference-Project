@@ -38,7 +38,7 @@ Causal-Inference-Project
 ├── ATE_standardization_modeling.Rmd
 ├── CATE_modeling_S_learner.Rmd
 ├── CATE_modeling_T_learner.Rmd
-├── basic_eda.Rmd
+├── Basic_EDA.Rmd
 ├── requirements.R
 └── README.md
 ```
@@ -59,6 +59,7 @@ Causal-Inference-Project
    ```
 
 3. **Execute notebooks** ▶️ 
+   * 📑 `Basic_EDA.Rmd` – EDA of the dataset with emphasis on missing values & imputations
    * 📑 `ATE_IPTW_modeling.Rmd` – IPTW pipeline for ATE estimation
    * 📑 `ATE_standardization_modeling.Rmd` – g-formula pipeline for ATE estimation  
    * 📑 `CATE_modeling_S_learner.Rmd` & `CATE_modeling_T_learner.Rmd` – Metalearners pipelines for CATE estimation
