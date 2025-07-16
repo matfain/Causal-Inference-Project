@@ -7,6 +7,8 @@
 
 &nbsp;
 
+[Full detailed report of the project can be found here](https://drive.google.com/file/d/1rK_Xf2Id_PniUfKDzwt_UysLgejQ2pzz/view?usp=sharing)
+
 > **Causal question**  
 > Does placing an indwelling arterial catheter (IAC) alter 28-day mortality in haemodynamically-stable, mechanically-ventilated ICU patients?
 
